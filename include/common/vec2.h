@@ -23,14 +23,14 @@ template <typename T> struct TVec2 {
 	const T &operator[](int n) const;
 
 	/* Equality */
-	bool operator==(const TVec2<T> &a) const;
+	bool operator==(const TVec2<T> & a) const;
 
 	/* Vector space structure */
-	TVec2 operator-() const;
-	TVec2 &operator+=(const TVec2 &a);
-	TVec2 &operator-=(const TVec2 &a);
-	TVec2 &operator*=(const T &t);
-	TVec2 &operator/=(const T &t);
+	TVec2<T> operator-() const;
+	TVec2<T> & operator+=(const TVec2<T> & a);
+	TVec2<T> & operator-=(const TVec2<T> & a);
+	TVec2<T> & operator*=(const T &t);
+	TVec2<T> & operator/=(const T &t);
 
 	/* Static members */
 	static inline TVec2<T> Zero{ 0, 0 };
