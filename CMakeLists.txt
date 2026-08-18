@@ -39,3 +39,10 @@ add_executable(test_cg
 )
 
 target_link_libraries(test_cg PRIVATE PLNS-solver)
+
+enable_testing()
+
+add_test(
+    NAME test_cg
+    COMMAND test_cg
+)

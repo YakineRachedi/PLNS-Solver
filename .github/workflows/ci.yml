@@ -1,0 +1,30 @@
+name: PLNS-SOLVER CI
+
+on:
+  push:
+    branches:
+      - master
+
+  pull_request:
+    branches:
+      - master
+
+
+jobs:
+  build-and-test:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: cmake -S . -B build
+
+      - name: Build project
+        run: cmake --build build --parallel
+
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
