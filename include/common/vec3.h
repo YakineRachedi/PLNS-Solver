@@ -81,12 +81,6 @@ template <typename T> inline TVec3<T> & TVec3<T>::operator-=(const TVec3<T> & a)
 	z -= a.z;
 	return (*this);
 }
-template <typename T> inline TVec3<T> & TVec3<T>::operator-=(const TVec3<T> & a) {
-	x -= a.x;
-	y -= a.y;
-	z -= a.z;
-	return (*this);
-}
 
 template <typename T> inline TVec3<T> & TVec3<T>::operator*=(const T & t) {
 	x *= t;
@@ -102,9 +96,6 @@ template <typename T> inline TVec3<T> & TVec3<T>::operator/=(const T & t) {
 	return (*this);
 }
 
-template <typename T> inline TVec3<T> operator+(const TVec3<T> & a, const TVec3<T> & b) {
-	return {a.x + b.x, a.y + b.y, a.z + b.z};
-}
 template <typename T> inline TVec3<T> operator+(const TVec3<T> & a, const TVec3<T> & b) {
 	return {a.x + b.x, a.y + b.y, a.z + b.z};
 }
@@ -131,6 +122,7 @@ template <typename T> inline TVec3<T> cross(const TVec3<T> & a, const TVec3<T> &
 
 template <typename T> inline T norm2(const TVec3<T> & a) {return (a.x * a.x + a.y * a.y + a.z * a.z);}
 template <typename T> inline T norm(const TVec3<T> & a) {return sqrt(a.x * a.x + a.y * a.y + a.z * a.z);}
+
 template <typename T> TVec3<T> normalized(const TVec3<T> & a) {
 	T len = norm(a);
 	return (len == 0) ? a : a * (1.f / len);

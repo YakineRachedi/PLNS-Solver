@@ -16,6 +16,8 @@ endif()
 
 add_library(PLNS-solver
     src/linalg/conjugate_gradient.cpp
+    src/matrix/fem_matrix.cpp
+    src/matrix/sparse_matrix.cpp
 )
 
 target_include_directories(PLNS-solver PUBLIC
@@ -23,6 +25,7 @@ target_include_directories(PLNS-solver PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include/common
     ${CMAKE_CURRENT_SOURCE_DIR}/include/linalg
     ${CMAKE_CURRENT_SOURCE_DIR}/include/matrix
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/mesh
 )
 
 target_include_directories(PLNS-solver PRIVATE
@@ -40,9 +43,24 @@ add_executable(test_cg
 
 target_link_libraries(test_cg PRIVATE PLNS-solver)
 
+add_executable(test_fem_matrix
+    src/bin/test_fem_matrix.cpp
+)
+target_link_libraries(test_fem_matrix PRIVATE PLNS-solver)
+
+add_executable(test_sparse_matrix
+    src/bin/test_sparse_matrix.cpp
+)
+target_link_libraries(test_sparse_matrix PRIVATE PLNS-solver)
+
+
 enable_testing()
 
-add_test(
-    NAME test_cg
-    COMMAND test_cg
+add_test(NAME test_cg            COMMAND test_cg)
+add_test(NAME test_fem_matrix    COMMAND test_fem_matrix)
+add_test(NAME test_sparse_matrix COMMAND test_sparse_matrix)
+
+add_custom_target(check
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+    DEPENDS test_cg test_fem_matrix test_sparse_matrix
 )
