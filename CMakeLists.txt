@@ -14,11 +14,19 @@ if (USE_OPENMP)
 	find_package(OpenMP)
 endif()
 
+
+###############################################################################
+# Library
+###############################################################################
+
 add_library(PLNS-solver
     src/linalg/conjugate_gradient.cpp
     src/matrix/fem_matrix.cpp
     src/matrix/sparse_matrix.cpp
-)
+    src/fem/P1.cpp
+    src/fem/poisson.cpp
+    src/mesh/adjacency.cpp
+    )
 
 target_include_directories(PLNS-solver PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -26,6 +34,8 @@ target_include_directories(PLNS-solver PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include/linalg
     ${CMAKE_CURRENT_SOURCE_DIR}/include/matrix
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mesh
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/fem
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/mesh
 )
 
 target_include_directories(PLNS-solver PRIVATE
@@ -53,14 +63,34 @@ add_executable(test_sparse_matrix
 )
 target_link_libraries(test_sparse_matrix PRIVATE PLNS-solver)
 
+add_executable(test_poisson
+    src/bin/test_poisson.cpp
+)
+target_link_libraries(test_poisson PRIVATE PLNS-solver)
+
+
+###############################################################################
+# Tests
+###############################################################################
 
 enable_testing()
 
 add_test(NAME test_cg            COMMAND test_cg)
 add_test(NAME test_fem_matrix    COMMAND test_fem_matrix)
 add_test(NAME test_sparse_matrix COMMAND test_sparse_matrix)
+add_test(NAME test_poisson       COMMAND test_poisson)
+
+###############################################################################
+# Run all tests
+###############################################################################
 
 add_custom_target(check
+
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_cg test_fem_matrix test_sparse_matrix
+
+    DEPENDS
+        test_cg
+        test_fem_matrix
+        test_sparse_matrix
+        test_poisson
 )
