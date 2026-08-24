@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cmath>
 
+#include "cube.h"
 #include "P1.h"
 #include "poisson.h"
 
@@ -182,6 +183,84 @@ static void test_clear_solution(const Mesh & mesh) {
           "Poisson: clear_solution resets iteration count");
 }
 
+
+/******************************************************************************
+ * Test Poisson solver on a triangulated surface embedded in 3D.
+ *
+ * A subdivided cube is used as the computational domain.
+ *
+ * The mesh is a closed triangulated surface embedded in R^3.
+ * This test validates that:
+ *
+ *     - the mesh can be used to construct a PoissonSolver;
+ *     - the FEM matrices are assembled correctly;
+ *     - the Conjugate Gradient solver converges;
+ *     - the final residual satisfies the requested tolerance.
+ *
+ *****************************************************************************/
+static void test_convergence_3d() {
+    Mesh mesh;
+
+    /*
+     * Build a cube surface with several subdivisions.
+     *
+     * This produces a larger problem than the unit square used by the
+     * previous tests.
+     */
+    int res = load_cube(mesh, 3);
+
+    check(res == 0,
+          "Poisson 3D: cube mesh creation succeeds");
+
+    if (res != 0)
+        return;
+
+    PoissonSolver solver(mesh);
+
+    /*
+     * Use a non-constant right-hand side.
+     *
+     * A constant right-hand side would be removed by the zero-mean
+     * correction performed by the solver.
+     */
+    for (size_t i = 0; i < solver.N; ++i) {
+        solver.f[i] =
+            std::sin(0.5 * (double)i) +
+            std::cos(0.7 * (double)i);
+    }
+
+    /*
+     * Solve:
+     *
+     *     A * u = M * f
+     */
+    solver.do_iterate(10000, 1e-10);
+
+    check(solver.converged,
+          "Poisson 3D: solver converges");
+
+    check(solver.rel_error <= 1e-10,
+          "Poisson 3D: relative residual is below tolerance");
+
+    check(solver.iterate > 0,
+          "Poisson 3D: at least one CG iteration was performed");
+
+    /*
+     * Verify that the computed solution contains valid finite values.
+     */
+    bool finite_solution = true;
+
+    for (size_t i = 0; i < solver.N; ++i) {
+        if (!std::isfinite(solver.u[i])) {
+            finite_solution = false;
+            break;
+        }
+    }
+
+    check(finite_solution,
+          "Poisson 3D: solution contains only finite values");
+}
+
 int main() {
     Mesh mesh;
     setup_mesh(mesh);
@@ -193,6 +272,8 @@ int main() {
     test_zero_mean(mesh);
     test_convergence(mesh);
     test_clear_solution(mesh);
+
+    test_convergence_3d();
 
     if (!g_all_passed) {
         printf("\nTEST FAILED\n");

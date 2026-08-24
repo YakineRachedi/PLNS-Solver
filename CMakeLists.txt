@@ -40,7 +40,6 @@ target_include_directories(PLNS-solver PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include/fem
 )
 
-
 if (USE_OPENMP AND OpenMP_CXX_FOUND)
 	target_compile_options(PLNS-solver PRIVATE -DUSE_OPENMP)
 	target_link_libraries(PLNS-solver PUBLIC OpenMP::OpenMP_CXX)
@@ -50,13 +49,38 @@ set(TEST_TARGETS
     test_cg
     test_fem_matrix
     test_sparse_matrix
-    test_poisson
     test_mesh
 )
 
 foreach(test_name ${TEST_TARGETS})
     add_executable(${test_name} src/bin/${test_name}.cpp)
     target_link_libraries(${test_name} PRIVATE PLNS-solver)
+endforeach()
+
+###############################################################################
+# test_poisson depends on USE_FEM_MATRIX -> build it twice, once per variant
+###############################################################################
+
+foreach(variant IN ITEMS fem csr)
+
+    if (variant STREQUAL "fem")
+        set(matrix_flag 1)
+    else()
+        set(matrix_flag 0)
+    endif()
+
+    set(exe_name test_poisson_${variant})
+
+    add_executable(${exe_name}
+        src/fem/poisson.cpp
+        src/bin/test_poisson.cpp
+    )
+
+    target_link_libraries(${exe_name} PRIVATE PLNS-solver)
+    target_compile_definitions(${exe_name} PRIVATE USE_FEM_MATRIX=${matrix_flag})
+
+    add_test(NAME ${exe_name} COMMAND ${exe_name})
+
 endforeach()
 
 ###############################################################################
@@ -68,7 +92,6 @@ enable_testing()
 add_test(NAME test_cg            COMMAND test_cg)
 add_test(NAME test_fem_matrix    COMMAND test_fem_matrix)
 add_test(NAME test_sparse_matrix COMMAND test_sparse_matrix)
-add_test(NAME test_poisson       COMMAND test_poisson)
 add_test(NAME test_mesh          COMMAND test_mesh)
 
 ###############################################################################
@@ -83,6 +106,7 @@ add_custom_target(check
         test_cg
         test_fem_matrix
         test_sparse_matrix
-        test_poisson
         test_mesh
+        test_poisson_fem
+        test_poisson_csr
 )

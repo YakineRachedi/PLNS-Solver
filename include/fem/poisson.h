@@ -2,7 +2,9 @@
 
 #include "array.h"
 
+#ifndef USE_FEM_MATRIX
 #define USE_FEM_MATRIX true
+#endif
 
 #if USE_FEM_MATRIX
 #include "fem_matrix.h"
