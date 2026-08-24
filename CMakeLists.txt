@@ -26,6 +26,9 @@ add_library(PLNS-solver
     src/fem/P1.cpp
     src/fem/poisson.cpp
     src/mesh/adjacency.cpp
+    src/mesh/cube.cpp
+    src/mesh/sphere.cpp
+    src/mesh/duplicate_verts.cpp
     )
 
 target_include_directories(PLNS-solver PUBLIC
@@ -35,39 +38,26 @@ target_include_directories(PLNS-solver PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include/matrix
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mesh
     ${CMAKE_CURRENT_SOURCE_DIR}/include/fem
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/mesh
 )
 
-target_include_directories(PLNS-solver PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
 
 if (USE_OPENMP AND OpenMP_CXX_FOUND)
 	target_compile_options(PLNS-solver PRIVATE -DUSE_OPENMP)
 	target_link_libraries(PLNS-solver PUBLIC OpenMP::OpenMP_CXX)
 endif()
 
-add_executable(test_cg
-    src/bin/test_cg.cpp
+set(TEST_TARGETS
+    test_cg
+    test_fem_matrix
+    test_sparse_matrix
+    test_poisson
+    test_mesh
 )
 
-target_link_libraries(test_cg PRIVATE PLNS-solver)
-
-add_executable(test_fem_matrix
-    src/bin/test_fem_matrix.cpp
-)
-target_link_libraries(test_fem_matrix PRIVATE PLNS-solver)
-
-add_executable(test_sparse_matrix
-    src/bin/test_sparse_matrix.cpp
-)
-target_link_libraries(test_sparse_matrix PRIVATE PLNS-solver)
-
-add_executable(test_poisson
-    src/bin/test_poisson.cpp
-)
-target_link_libraries(test_poisson PRIVATE PLNS-solver)
-
+foreach(test_name ${TEST_TARGETS})
+    add_executable(${test_name} src/bin/${test_name}.cpp)
+    target_link_libraries(${test_name} PRIVATE PLNS-solver)
+endforeach()
 
 ###############################################################################
 # Tests
@@ -79,6 +69,7 @@ add_test(NAME test_cg            COMMAND test_cg)
 add_test(NAME test_fem_matrix    COMMAND test_fem_matrix)
 add_test(NAME test_sparse_matrix COMMAND test_sparse_matrix)
 add_test(NAME test_poisson       COMMAND test_poisson)
+add_test(NAME test_mesh          COMMAND test_mesh)
 
 ###############################################################################
 # Run all tests
@@ -93,4 +84,5 @@ add_custom_target(check
         test_fem_matrix
         test_sparse_matrix
         test_poisson
+        test_mesh
 )
