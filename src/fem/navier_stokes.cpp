@@ -453,7 +453,12 @@ void NavierStokesSolver::time_step(double dt, double nu) {
 	 * The current omega is used as the initial guess.
 	 */
 
-
+    /*
+    * Compute the squared norm of the right-hand side, used to
+    * evaluate the relative residual during the CG iterations.
+    */
+    b2 = blas_dot(P, P, N);
+    
 	/*
 	 * First compute:
 	 *

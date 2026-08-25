@@ -25,6 +25,7 @@ add_library(PLNS-solver
     src/matrix/sparse_matrix.cpp
     src/fem/P1.cpp
     src/fem/poisson.cpp
+    src/fem/navier_stokes.cpp
     src/mesh/adjacency.cpp
     src/mesh/cube.cpp
     src/mesh/sphere.cpp
@@ -50,6 +51,7 @@ set(TEST_TARGETS
     test_fem_matrix
     test_sparse_matrix
     test_mesh
+    test_navier_stokes
 )
 
 foreach(test_name ${TEST_TARGETS})
@@ -93,6 +95,7 @@ add_test(NAME test_cg            COMMAND test_cg)
 add_test(NAME test_fem_matrix    COMMAND test_fem_matrix)
 add_test(NAME test_sparse_matrix COMMAND test_sparse_matrix)
 add_test(NAME test_mesh          COMMAND test_mesh)
+add_test(NAME test_navier_stokes COMMAND test_navier_stokes)
 
 ###############################################################################
 # Run all tests
@@ -109,4 +112,5 @@ add_custom_target(check
         test_mesh
         test_poisson_fem
         test_poisson_csr
+        test_navier_stokes
 )
