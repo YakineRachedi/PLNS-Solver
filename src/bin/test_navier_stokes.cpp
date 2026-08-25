@@ -1,63 +1,6 @@
-#include <cstdio>
-#include <cmath>
-
+#include "test_utils.h"
+#include "test_meshes.h"
 #include "navier_stokes.h"
-
-/******************************************************************************
- * Unit tests for NavierStokesSolver.
- *
- * Mesh used for every test: a unit square divided into two triangles.
- *
- *        3 ----- 2
- *        |     / |
- *        |   /   |
- *        | /     |
- *        0 ----- 1
- *
- * positions:
- *
- *     0 = (0,0,0)
- *     1 = (1,0,0)
- *     2 = (1,1,0)
- *     3 = (0,1,0)
- *
- * triangles:
- *
- *     [0,1,2]
- *     [0,2,3]
- *
- *****************************************************************************/
-
-static bool g_all_passed = true;
-
-static void check(bool cond, const char *name) {
-    printf("[%s] %s\n", cond ? "PASS" : "FAIL", name);
-
-    if (!cond)
-        g_all_passed = false;
-}
-
-static bool almost_equal(double a, double b, double eps = 1e-9) {return std::abs(a - b) < eps;}
-
-/******************************************************************************
- * Create a simple two-triangle mesh.
- *****************************************************************************/
-static void setup_mesh(Mesh & m) {
-    m.positions.resize(4);
-
-    m.positions[0] = {0.0f, 0.0f, 0.0f};
-    m.positions[1] = {1.0f, 0.0f, 0.0f};
-    m.positions[2] = {1.0f, 1.0f, 0.0f};
-    m.positions[3] = {0.0f, 1.0f, 0.0f};
-
-    m.indices.push_back(0);
-    m.indices.push_back(1);
-    m.indices.push_back(2);
-
-    m.indices.push_back(0);
-    m.indices.push_back(2);
-    m.indices.push_back(3);
-}
 
 
 /******************************************************************************
@@ -268,6 +211,7 @@ static void test_transport_conservation(const Mesh & mesh) {
  * We verify that the simulation time has advanced by dt and that the final
  * vorticity has zero discrete mean.
  *****************************************************************************/
+
 static void test_time_step(const Mesh & mesh) {
     NavierStokesSolver solver(mesh);
 
@@ -339,7 +283,7 @@ static void test_diffusion(const Mesh & mesh) {
 
 int main() {
     Mesh mesh;
-    setup_mesh(mesh);
+    setup_unit_square_mesh(mesh);
 
     printf("NavierStokesSolver unit tests\n");
     printf("-----------------------------\n");

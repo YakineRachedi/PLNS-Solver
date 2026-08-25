@@ -1,0 +1,6 @@
+Notes.txt
+*.txt
+*.swp
+**/build/
+**/.cache/
+build/

@@ -1,6 +1,5 @@
-#include <cstdio>
-#include <cmath>
-
+#include "test_meshes.h"
+#include "test_utils.h"
 #include "fem_matrix.h"
 
 /******************************************************************************
@@ -15,29 +14,6 @@
  * All expected values below were computed by hand.
  *****************************************************************************/
 
-static bool g_all_passed = true;
-
-static void check(bool cond, const char *name) {
-    printf("[%s] %s\n", cond ? "PASS" : "FAIL", name);
-    if (!cond) g_all_passed = false;
-}
-
-static bool almost_equal(double a, double b, double eps = 1e-9) {
-    return std::abs(a - b) < eps;
-}
-
-static void setup_mesh(Mesh & m) {
-    /* Vertex coordinates are not used by FEMatrix, only connectivity is. */
-    m.positions.resize(4);
-
-    m.indices.push_back(0);
-    m.indices.push_back(1);
-    m.indices.push_back(2);
-
-    m.indices.push_back(0);
-    m.indices.push_back(2);
-    m.indices.push_back(3);
-}
 
 /******************************************************************************
  * P1_cst : one common off-diagonal coefficient per triangle.
@@ -183,7 +159,7 @@ static void test_P1_gen(const Mesh & mesh) {
 
 int main() {
     Mesh mesh;
-    setup_mesh(mesh);
+    setup_unit_square_mesh(mesh);
 
     printf("FEMatrix unit tests\n");
     printf("-------------------\n");

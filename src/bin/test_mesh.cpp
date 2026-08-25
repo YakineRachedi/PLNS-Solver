@@ -1,6 +1,4 @@
-#include <cstdio>
-#include <cmath>
-
+#include "test_utils.h"
 #include "sphere.h"
 #include "cube.h"
 #include "mesh.h"
@@ -23,20 +21,6 @@
  *     - duplicate vertices are removed;
  *     - sphere vertices are normalized.
  *****************************************************************************/
-
-static bool g_all_passed = true;
-
-static void check(bool cond, const char *name) {
-    printf("[%s] %s\n", cond ? "PASS" : "FAIL", name);
-
-    if (!cond) {
-        g_all_passed = false;
-    }
-}
-
-static bool almost_equal(double a, double b, double eps = 1e-9) {
-    return std::abs(a - b) < eps;
-}
 
 /******************************************************************************
  * Check that all vertex positions are unique.

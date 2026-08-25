@@ -1,22 +1,9 @@
-#include <cstdio>
-#include <cmath>
-
+#include "test_utils.h"
 #include "sparse_matrix.h"
 
 /******************************************************************************
  * Unit tests for CSRMatrix (non-symmetric and symmetric storage).
  *****************************************************************************/
-
-static bool g_all_passed = true;
-
-static void check(bool cond, const char *name) {
-    printf("[%s] %s\n", cond ? "PASS" : "FAIL", name);
-    if (!cond) g_all_passed = false;
-}
-
-static bool almost_equal(double a, double b, double eps = 1e-9) {
-    return std::abs(a - b) < eps;
-}
 
 /******************************************************************************
  * Non-symmetric CSR matrix, taken directly from the CSRPattern documentation
