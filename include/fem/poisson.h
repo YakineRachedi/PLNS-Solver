@@ -2,14 +2,10 @@
 
 #include "array.h"
 
-#ifndef USE_FEM_MATRIX
-#define USE_FEM_MATRIX true
-#endif
-
 #if USE_FEM_MATRIX
-#include "fem_matrix.h"
+	#include "fem_matrix.h"
 #else
-#include "sparse_matrix.h"
+	#include "sparse_matrix.h"
 #endif
 
 #include "mesh.h"

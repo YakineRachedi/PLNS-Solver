@@ -141,7 +141,7 @@ static void test_stream_function(const Mesh & mesh) {
         std::sqrt(residual2 / rhs2);
 
     check(relative_residual <= solver.tol * 10.0,
-          "Navier-Stokes: stream-function equation is solved");
+        "Navier-Stokes: stream-function equation is solved");
 }
 
 

@@ -51,8 +51,9 @@
  *     7. Initializes the simulation time.
  *
  *****************************************************************************/
-NavierStokesSolver::NavierStokesSolver(const Mesh &m) : m(m), N(m.vertex_count()), omega(N), 
-                                                                Momega(N), psi(N), r(N), p(N), Ap(N) {
+NavierStokesSolver::NavierStokesSolver(const Mesh &m) : m(m), N(m.vertex_count()),
+                                                          omega(N, 0.0), Momega(N, 0.0), psi(N, 0.0),
+                                                          r(N, 0.0), p(N, 0.0), Ap(N, 0.0) {
 	/*
 	 * Build the common sparse pattern used by the finite element
 	 * mass and stiffness matrices.
