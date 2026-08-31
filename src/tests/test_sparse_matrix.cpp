@@ -113,17 +113,16 @@ static void test_symmetric() {
 }
 
 int main() {
-    printf("CSRMatrix unit tests\n");
-    printf("--------------------\n");
+    LOG_MSG("CSRMatrix unit tests");
 
     test_non_symmetric();
     test_symmetric();
 
     if (!g_all_passed) {
-        printf("\nTEST FAILED\n");
+        LOG_MSG("TEST FAILED");
         return 1;
     }
 
-    printf("\nTEST PASSED\n");
+    LOG_MSG("TEST PASSED");
     return 0;
 }

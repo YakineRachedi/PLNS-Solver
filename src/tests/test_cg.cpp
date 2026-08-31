@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cmath>
 
+#include "test_utils.h"
 #include "matrix.h"
 #include "conjugate_gradient.h"
 
@@ -99,28 +100,27 @@ int main() {
 	double error0 = std::abs(x[0] - expected_x0);
 	double error1 = std::abs(x[1] - expected_x1);
 
-    printf("CG test\n");
-    printf("-------\n");
+    LOG_MSG("CG test");
+    LOG_MSG("Iterations : %zu", iterations);
+    LOG_MSG("Relative error : %.15e", rel_error);
 
-    printf("Iterations : %zu\n", iterations);
-    printf("Relative error : %.15e\n", rel_error);
+    LOG_MSG("Computed solution:");
+    LOG_MSG("x[0] = %.15f", x[0]);
+    LOG_MSG("x[1] = %.15f", x[1]);
 
-    printf("\nComputed solution:\n");
-    printf("x[0] = %.15f\n", x[0]);
-    printf("x[1] = %.15f\n", x[1]);
-
-    printf("\nExpected solution:\n");
-    printf("x[0] = %.15f\n", 1.0 / 11.0);
-    printf("x[1] = %.15f\n", 7.0 / 11.0);
+    LOG_MSG("Expected solution:");
+    LOG_MSG("x[0] = %.15f", 1.0 / 11.0);
+    LOG_MSG("x[1] = %.15f", 7.0 / 11.0);
 
     const double tolerance = 1e-8;
 
-	if (error0 > tolerance || error1 > tolerance) {
-		printf("TEST FAILED\n");
-		return 1;
-	}
+    if (error0 > tolerance || error1 > tolerance) {
+        LOG_MSG("TEST FAILED");
+        return 1;
+    }
 
-	printf("TEST PASSED\n");
+    LOG_MSG("TEST PASSED");
+    return 0;
     
     return 0;
 }

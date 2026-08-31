@@ -211,21 +211,19 @@ int main() {
     Mesh mesh;
     setup_unit_square_mesh(mesh);
 
-    printf("PoissonSolver unit tests\n");
-    printf("------------------------\n");
+    LOG_MSG("PoissonSolver unit tests");
 
     test_initialization(mesh);
     test_zero_mean(mesh);
     test_convergence(mesh);
     test_clear_solution(mesh);
-
     test_convergence_3d();
 
     if (!g_all_passed) {
-        printf("\nTEST FAILED\n");
+        LOG_MSG("TEST FAILED");
         return 1;
     }
 
-    printf("\nTEST PASSED\n");
+    LOG_MSG("TEST PASSED");
     return 0;
 }

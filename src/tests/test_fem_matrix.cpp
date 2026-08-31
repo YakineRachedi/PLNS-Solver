@@ -161,18 +161,17 @@ int main() {
     Mesh mesh;
     setup_unit_square_mesh(mesh);
 
-    printf("FEMatrix unit tests\n");
-    printf("-------------------\n");
+    LOG_MSG("FEMatrix unit tests");
 
     test_P1_cst(mesh);
     test_P1_sym(mesh);
     test_P1_gen(mesh);
 
     if (!g_all_passed) {
-        printf("\nTEST FAILED\n");
+        LOG_MSG("TEST FAILED");
         return 1;
     }
 
-    printf("\nTEST PASSED\n");
+    LOG_MSG("TEST PASSED");
     return 0;
 }

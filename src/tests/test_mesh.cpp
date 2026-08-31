@@ -157,18 +157,17 @@ static void test_sphere() {
 }
 
 int main() {
-    printf("Mesh generation unit tests\n");
-    printf("--------------------------\n");
+    LOG_MSG("Mesh generation unit tests");
 
     test_cube();
     test_cube_invalid_subdiv();
     test_sphere();
 
     if (!g_all_passed) {
-        printf("\nTEST FAILED\n");
+        LOG_MSG("TEST FAILED");
         return 1;
     }
 
-    printf("\nTEST PASSED\n");
+    LOG_MSG("TEST PASSED");
     return 0;
 }

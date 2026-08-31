@@ -20,6 +20,8 @@ endif()
 ###############################################################################
 
 add_library(PLNS-solver
+    src/common/chrono.cpp
+    src/common/logging.cpp
     src/linalg/conjugate_gradient.cpp
     src/matrix/fem_matrix.cpp
     src/matrix/sparse_matrix.cpp
