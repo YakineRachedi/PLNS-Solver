@@ -54,7 +54,7 @@ set(TEST_TARGETS
 )
 
 foreach(test_name ${TEST_TARGETS})
-    add_executable(${test_name} src/bin/${test_name}.cpp)
+    add_executable(${test_name} src/tests/${test_name}.cpp)
     target_link_libraries(${test_name} PRIVATE PLNS-solver)
 endforeach()
 
@@ -74,7 +74,7 @@ foreach(variant IN ITEMS fem csr)
 
     add_executable(${exe_name}
         src/fem/poisson.cpp
-        src/bin/test_poisson.cpp
+        src/tests/test_poisson.cpp
     )
 
     target_link_libraries(${exe_name} PRIVATE PLNS-solver)
@@ -100,7 +100,7 @@ foreach(variant IN ITEMS fem csr)
 
     add_executable(${exe_name}
         src/fem/navier_stokes.cpp
-        src/bin/test_navier_stokes.cpp
+        src/tests/test_navier_stokes.cpp
     )
 
     target_link_libraries(${exe_name} PRIVATE PLNS-solver)
