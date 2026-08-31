@@ -42,38 +42,49 @@
  *
  * The constructor:
  *
- *     1. Stores the mesh and determines the number of degrees of freedom.
- *     2. Allocates the vectors required by the solver.
- *     3. Builds the common CSR sparsity pattern.
- *     4. Assembles the P1 finite element mass matrix M.
- *     5. Assembles the P1 finite element stiffness matrix S.
- *     6. Computes the total domain measure using the mass matrix.
- *     7. Initializes the simulation time.
+ *   1. Stores the input mesh.
+ *   2. Sets the number of degrees of freedom.
+ *   3. Allocates the solution and temporary vectors.
+ *   4. Builds the finite element mass and stiffness matrices.
+ *   5. Computes the total area of the domain.
+ *
+ * Depending on USE_FEM_MATRIX, the matrices are stored either using:
+ *
+ *   - FEMatrix : specialized finite element representation;
+ *   - CSRMatrix : generic compressed sparse row representation.
  *
  *****************************************************************************/
-NavierStokesSolver::NavierStokesSolver(const Mesh &m) : m(m), N(m.vertex_count()),
+NavierStokesSolver::NavierStokesSolver(const Mesh & m) : m(m), N(m.vertex_count()),
                                                           omega(N, 0.0), Momega(N, 0.0), psi(N, 0.0),
                                                           r(N, 0.0), p(N, 0.0), Ap(N, 0.0) {
+#if USE_FEM_MATRIX
+
 	/*
-	 * Build the common sparse pattern used by the finite element
-	 * mass and stiffness matrices.
+	 * Build the finite element matrices using the specialized
+	 * FEMatrix representation.
+	 *
+	 * This representation exploits the structure of P1 finite
+	 * element matrices and stores only the coefficients required
+	 * for the finite element operations.
+	 */
+	build_P1_mass_matrix(m, M);
+	build_P1_stiffness_matrix(m, S);
+
+#else
+
+	/*
+	 * Build the common sparsity pattern and assemble the matrices
+	 * using the CSR sparse matrix representation.
 	 */
 	build_P1_CSRPattern(m, P);
 
-	/* Assemble the finite element mass matrix. */
 	build_P1_mass_matrix(m, P, M);
-
-	/* Assemble the finite element stiffness matrix. */
 	build_P1_stiffness_matrix(m, P, S);
 
+#endif
+
 	/*
-	 * Compute the total surface/volume represented by the mesh.
-	 *
-	 * For a constant vector equal to one:
-	 *
-	 *     1^T M 1 = vol
-	 *
-	 * This value is used to enforce the zero-mean condition.
+	 * Compute the total area of the computational domain.
 	 */
 	vol = M.sum();
 

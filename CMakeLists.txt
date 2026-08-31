@@ -51,7 +51,6 @@ set(TEST_TARGETS
     test_fem_matrix
     test_sparse_matrix
     test_mesh
-    test_navier_stokes
 )
 
 foreach(test_name ${TEST_TARGETS})
@@ -86,6 +85,32 @@ foreach(variant IN ITEMS fem csr)
 endforeach()
 
 ###############################################################################
+# test_navier_stokes depends on USE_FEM_MATRIX -> build it twice too
+###############################################################################
+
+foreach(variant IN ITEMS fem csr)
+
+    if (variant STREQUAL "fem")
+        set(matrix_flag 1)
+    else()
+        set(matrix_flag 0)
+    endif()
+
+    set(exe_name test_navier_stokes_${variant})
+
+    add_executable(${exe_name}
+        src/fem/navier_stokes.cpp
+        src/bin/test_navier_stokes.cpp
+    )
+
+    target_link_libraries(${exe_name} PRIVATE PLNS-solver)
+    target_compile_definitions(${exe_name} PRIVATE USE_FEM_MATRIX=${matrix_flag})
+
+    add_test(NAME ${exe_name} COMMAND ${exe_name})
+
+endforeach()
+
+###############################################################################
 # Tests
 ###############################################################################
 
@@ -95,7 +120,6 @@ add_test(NAME test_cg            COMMAND test_cg)
 add_test(NAME test_fem_matrix    COMMAND test_fem_matrix)
 add_test(NAME test_sparse_matrix COMMAND test_sparse_matrix)
 add_test(NAME test_mesh          COMMAND test_mesh)
-add_test(NAME test_navier_stokes COMMAND test_navier_stokes)
 
 ###############################################################################
 # Run all tests
@@ -112,5 +136,7 @@ add_custom_target(check
         test_mesh
         test_poisson_fem
         test_poisson_csr
-        test_navier_stokes
+        test_navier_stokes_fem
+        test_navier_stokes_csr
+
 )
