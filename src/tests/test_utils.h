@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <cmath>
+#include <string>
 
 #include "logging.h"
 

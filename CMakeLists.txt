@@ -32,6 +32,8 @@ add_library(PLNS-solver
     src/mesh/cube.cpp
     src/mesh/sphere.cpp
     src/mesh/duplicate_verts.cpp
+    src/mesh/mesh_bounds.cpp
+    src/mesh/mesh_io.cpp
     )
 
 target_include_directories(PLNS-solver PUBLIC
@@ -41,6 +43,7 @@ target_include_directories(PLNS-solver PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include/matrix
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mesh
     ${CMAKE_CURRENT_SOURCE_DIR}/include/fem
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern
 )
 
 if (USE_OPENMP AND OpenMP_CXX_FOUND)
@@ -53,12 +56,18 @@ set(TEST_TARGETS
     test_fem_matrix
     test_sparse_matrix
     test_mesh
+    test_mesh_bounds
+    test_mesh_io
 )
 
 foreach(test_name ${TEST_TARGETS})
     add_executable(${test_name} src/tests/${test_name}.cpp)
     target_link_libraries(${test_name} PRIVATE PLNS-solver)
 endforeach()
+
+target_compile_definitions(test_mesh_io PRIVATE
+    TEST_DATA_DIR="${CMAKE_SOURCE_DIR}/data"
+)
 
 ###############################################################################
 # test_poisson depends on USE_FEM_MATRIX -> build it twice, once per variant
@@ -122,6 +131,8 @@ add_test(NAME test_cg            COMMAND test_cg)
 add_test(NAME test_fem_matrix    COMMAND test_fem_matrix)
 add_test(NAME test_sparse_matrix COMMAND test_sparse_matrix)
 add_test(NAME test_mesh          COMMAND test_mesh)
+add_test(NAME test_mesh_bounds   COMMAND test_mesh_bounds)
+add_test(NAME test_mesh_io       COMMAND test_mesh_io)
 
 ###############################################################################
 # Run all tests
@@ -136,6 +147,8 @@ add_custom_target(check
         test_fem_matrix
         test_sparse_matrix
         test_mesh
+        test_mesh_bounds
+        test_mesh_io
         test_poisson_fem
         test_poisson_csr
         test_navier_stokes_fem
