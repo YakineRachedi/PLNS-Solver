@@ -95,6 +95,11 @@ set(TEST_TARGETS
     test_mesh_bounds
     test_mesh_io
     test_mesh_gpu
+    test_vec4
+    test_mat4
+    test_quat
+    test_geometry
+    test_rigid_transform
 )
 
 foreach(test_name ${TEST_TARGETS})
@@ -171,6 +176,11 @@ add_test(NAME test_mesh          COMMAND test_mesh)
 add_test(NAME test_mesh_bounds   COMMAND test_mesh_bounds)
 add_test(NAME test_mesh_io       COMMAND test_mesh_io)
 add_test(NAME test_mesh_gpu      COMMAND test_mesh_gpu)
+add_test(NAME test_vec4            COMMAND test_vec4)
+add_test(NAME test_mat4            COMMAND test_mat4)
+add_test(NAME test_quat            COMMAND test_quat)
+add_test(NAME test_geometry        COMMAND test_geometry)
+add_test(NAME test_rigid_transform COMMAND test_rigid_transform)
 
 ###############################################################################
 # Run all tests
@@ -188,6 +198,11 @@ add_custom_target(check
         test_mesh_bounds
         test_mesh_io
         test_mesh_gpu
+        test_vec4
+        test_mat4
+        test_quat
+        test_geometry
+        test_rigid_transform
         test_poisson_fem
         test_poisson_csr
         test_navier_stokes_fem
