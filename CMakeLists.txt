@@ -44,6 +44,13 @@ target_include_directories(imgui_glfw_opengl3 PUBLIC
 target_link_libraries(imgui_glfw_opengl3 PUBLIC glfw OpenGL::GL)
 
 ###############################################################################
+# tinyexpr
+###############################################################################
+
+add_library(tiny_expr extern/tiny_expr/tinyexpr.c)
+target_include_directories(tiny_expr PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern)
+
+###############################################################################
 # Library
 ###############################################################################
 
@@ -209,3 +216,11 @@ add_custom_target(check
         test_navier_stokes_csr
 
 )
+
+
+###############################################################################
+# Demo
+###############################################################################
+add_executable(demo-poisson examples/demo-poisson.cpp)
+target_compile_options(demo-poisson PRIVATE -Wall -Wextra -Wno-missing-field-initializers)
+target_link_libraries(demo-poisson PRIVATE PLNS-solver tiny_expr)
