@@ -37,3 +37,67 @@ jobs:
 
       - name: Run tests
         run: xvfb-run --auto-servernum ctest --test-dir build --output-on-failure
+      
+      - name: Upload artifacts
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: plns-solver-linux
+          path: |
+            build/demo-poisson
+  release-demo:
+
+    name: Release demo
+    needs: build-and-test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgl1-mesa-dev \
+            libglu1-mesa-dev \
+            xorg-dev \
+            libwayland-dev \
+            wayland-protocols \
+            libxkbcommon-dev \
+            xvfb \
+            mesa-utils
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build
+
+      - name: Build demo
+        run: |
+          cmake --build build --target demo-poisson --parallel
+
+      - name: Test demo
+        run: |
+          timeout 10s xvfb-run --auto-servernum \
+            ./build/demo-poisson || test $? -eq 124
+
+      - name: Package demo
+        run: |
+          tar -czf \
+            plns-solver-demo-${{ github.ref_name }}.tar.gz \
+            -C build \
+            demo-poisson
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            plns-solver-demo-${{ github.ref_name }}.tar.gz
