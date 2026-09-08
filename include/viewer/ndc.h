@@ -10,14 +10,22 @@
 
 #include "vec3.h"
 
+// OpenGL 4.1 uses the standard OpenGL NDC convention.
+//
+// X and Y range from -1 to 1.
+// Z ranges from -1 to 1.
+// The window origin is at the bottom-left.
+//
+// glClipControl() is not available in OpenGL 4.1,
+// so no explicit clip-control configuration is required.
+
 #define NDC_REVERSED_Y 0
-#ifndef __APPLE__
-	#define NDC_REVERSED_Z 1
-	#define NDC_Z_ZERO_ONE 1
-#else
-	#define NDC_REVERSED_Z 0
-	#define NDC_Z_ZERO_ONE 0
-#endif
+#define NDC_REVERSED_Z 0
+#define NDC_Z_ZERO_ONE 0
+
+constexpr bool reversed_y = NDC_REVERSED_Y ? true : false;
+constexpr bool reversed_z = NDC_REVERSED_Z ? true : false;
+constexpr bool z_zero_one = NDC_Z_ZERO_ONE ? true : false;
 
 /* The various graphic API do NOT agree on the definition
  * of Normalized Device Coordinates (hereafter NDC).
@@ -66,10 +74,6 @@
 	#endif
 #endif
 
-constexpr bool reversed_y = NDC_REVERSED_Y ? true : false;
-constexpr bool reversed_z = NDC_REVERSED_Z ? true : false;
-constexpr bool z_zero_one = NDC_Z_ZERO_ONE ? true : false;
-
 inline Vec3 nwd_to_ndc(float x, float y, float depth)
 {
 	Vec3 ndc{0, 0, 0};
@@ -89,14 +93,10 @@ inline Vec3 nwd_to_ndc(float x, float y, float depth)
 
 inline void set_up_opengl_for_ndc()
 {
-#ifndef __APPLE__
-	constexpr GLenum origin = reversed_y ? GL_UPPER_LEFT : GL_LOWER_LEFT;
-	constexpr GLenum depth =
-	    z_zero_one ? GL_ZERO_TO_ONE : GL_NEGATIVE_ONE_TO_ONE;
-	glClipControl(origin, depth);
-#endif
-	if constexpr (reversed_z) {
-		glDepthFunc(GL_GREATER);
-		glClearDepth(0.0f);
-	}
+    // OpenGL 4.1 already uses the required NDC convention.
+
+    if constexpr (reversed_z) {
+        glDepthFunc(GL_GREATER);
+        glClearDepth(0.0);
+    }
 }

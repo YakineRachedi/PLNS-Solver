@@ -19,16 +19,8 @@
  *   - glGenVertexArrays
  *   - glBindVertexArray
  *
- * must therefore be loaded dynamically after an OpenGL context has been
- * created.
- *
- * The function:
- *
- *     init_gl()
- *
- * must be called after:
- *
- *     glfwMakeContextCurrent(window);
+ * must therefore be loaded dynamically after an OpenGL context has been created.
+ * The function init_gl() must be called after a valid OpenGL context has been created.
  *
  *****************************************************************************/
 
@@ -49,6 +41,47 @@
 typedef ptrdiff_t GLsizeiptr;
 #endif
 
+#ifndef GLchar
+typedef char GLchar;
+#endif
+
+// OpenGL constants that may be missing from old Windows headers.
+
+#ifndef GL_ARRAY_BUFFER
+#define GL_ARRAY_BUFFER 0x8892
+#endif
+
+#ifndef GL_ELEMENT_ARRAY_BUFFER
+#define GL_ELEMENT_ARRAY_BUFFER 0x8893
+#endif
+
+#ifndef GL_STATIC_DRAW
+#define GL_STATIC_DRAW 0x88E4
+#endif
+
+#ifndef GL_DYNAMIC_DRAW
+#define GL_DYNAMIC_DRAW 0x88E8
+#endif
+
+#ifndef GL_COMPILE_STATUS
+#define GL_COMPILE_STATUS 0x8B81
+#endif
+
+#ifndef GL_LINK_STATUS
+#define GL_LINK_STATUS 0x8B82
+#endif
+
+#ifndef GL_INFO_LOG_LENGTH
+#define GL_INFO_LOG_LENGTH 0x8B84
+#endif
+
+#ifndef GL_VERTEX_SHADER
+#define GL_VERTEX_SHADER 0x8B31
+#endif
+
+#ifndef GL_FRAGMENT_SHADER
+#define GL_FRAGMENT_SHADER 0x8B30
+#endif
 
 /******************************************************************************
  * OpenGL function pointer types.
@@ -95,7 +128,6 @@ typedef void (*PFNGLDELETEVERTEXARRAYSPROC)(
     const GLuint *arrays
 );
 
-
 /* Vertex attributes */
 
 typedef void (*PFNGLVERTEXATTRIBPOINTERPROC)(
@@ -115,6 +147,117 @@ typedef void (*PFNGLDISABLEVERTEXATTRIBARRAYPROC)(
     GLuint index
 );
 
+// Shader objects.
+
+typedef GLuint (*PFNGLCREATESHADERPROC)(
+    GLenum type
+);
+
+typedef void (*PFNGLSHADERSOURCEPROC)(
+    GLuint shader,
+    GLsizei count,
+    const GLchar *const *string,
+    const GLint *length
+);
+
+typedef void (*PFNGLCOMPILESHADERPROC)(
+    GLuint shader
+);
+
+typedef void (*PFNGLGETSHADERIVPROC)(
+    GLuint shader,
+    GLenum pname,
+    GLint *params
+);
+
+typedef void (*PFNGLGETSHADERINFOLOGPROC)(
+    GLuint shader,
+    GLsizei maxLength,
+    GLsizei *length,
+    GLchar *infoLog
+);
+
+typedef void (*PFNGLDELETESHADERPROC)(
+    GLuint shader
+);
+
+
+// Shader programs.
+
+typedef GLuint (*PFNGLCREATEPROGRAMPROC)(
+    void
+);
+
+typedef void (*PFNGLATTACHSHADERPROC)(
+    GLuint program,
+    GLuint shader
+);
+
+typedef void (*PFNGLLINKPROGRAMPROC)(
+    GLuint program
+);
+
+typedef void (*PFNGLGETPROGRAMIVPROC)(
+    GLuint program,
+    GLenum pname,
+    GLint *params
+);
+
+typedef void (*PFNGLGETPROGRAMINFOLOGPROC)(
+    GLuint program,
+    GLsizei maxLength,
+    GLsizei *length,
+    GLchar *infoLog
+);
+
+typedef void (*PFNGLDETACHSHADERPROC)(
+    GLuint program,
+    GLuint shader
+);
+
+typedef void (*PFNGLDELETEPROGRAMPROC)(
+    GLuint program
+);
+
+// Program use and uniforms.
+
+typedef void (*PFNGLUSEPROGRAMPROC)(
+    GLuint program
+);
+
+typedef void (*PFNGLUNIFORMMATRIX4FVPROC)(
+    GLint location,
+    GLsizei count,
+    GLboolean transpose,
+    const GLfloat *value
+);
+
+typedef void (*PFNGLUNIFORM1FPROC)(
+    GLint location,
+    GLfloat v0
+);
+
+// Retrieve the location of a uniform variable in a shader program.
+
+typedef GLint (*PFNGLGETUNIFORMLOCATIONPROC)(
+    GLuint program,
+    const GLchar *name
+);
+
+// Set a vec3 uniform variable.
+
+typedef void (*PFNGLUNIFORM3FVPROC)(
+    GLint location,
+    GLsizei count,
+    const GLfloat *value
+);
+
+// Set an integer uniform variable.
+
+typedef void (*PFNGLUNIFORM1IPROC)(
+    GLint location,
+    GLint v0
+);
 
 /******************************************************************************
  * Modern OpenGL constants.
@@ -161,6 +304,32 @@ extern PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays_ptr;
 extern PFNGLVERTEXATTRIBPOINTERPROC glVertexAttribPointer_ptr;
 extern PFNGLENABLEVERTEXATTRIBARRAYPROC glEnableVertexAttribArray_ptr;
 extern PFNGLDISABLEVERTEXATTRIBARRAYPROC glDisableVertexAttribArray_ptr;
+
+// Shader objects.
+extern PFNGLCREATESHADERPROC glCreateShader_ptr;
+extern PFNGLSHADERSOURCEPROC glShaderSource_ptr;
+extern PFNGLCOMPILESHADERPROC glCompileShader_ptr;
+extern PFNGLGETSHADERIVPROC glGetShaderiv_ptr;
+extern PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog_ptr;
+extern PFNGLDELETESHADERPROC glDeleteShader_ptr;
+
+// Shader programs.
+extern PFNGLCREATEPROGRAMPROC glCreateProgram_ptr;
+extern PFNGLATTACHSHADERPROC glAttachShader_ptr;
+extern PFNGLLINKPROGRAMPROC glLinkProgram_ptr;
+extern PFNGLGETPROGRAMIVPROC glGetProgramiv_ptr;
+extern PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog_ptr;
+extern PFNGLDETACHSHADERPROC glDetachShader_ptr;
+extern PFNGLDELETEPROGRAMPROC glDeleteProgram_ptr;
+
+// Program use and uniforms.
+
+extern PFNGLUSEPROGRAMPROC glUseProgram_ptr;
+extern PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv_ptr;
+extern PFNGLUNIFORM1FPROC glUniform1f_ptr;
+extern PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation_ptr;
+extern PFNGLUNIFORM3FVPROC glUniform3fv_ptr;
+extern PFNGLUNIFORM1IPROC glUniform1i_ptr;
 
 
 /******************************************************************************
@@ -210,3 +379,28 @@ bool init_gl();
 #define glVertexAttribPointer glVertexAttribPointer_ptr
 #define glEnableVertexAttribArray glEnableVertexAttribArray_ptr
 #define glDisableVertexAttribArray glDisableVertexAttribArray_ptr
+
+// Shader objects.
+#define glCreateShader glCreateShader_ptr
+#define glShaderSource glShaderSource_ptr
+#define glCompileShader glCompileShader_ptr
+#define glGetShaderiv glGetShaderiv_ptr
+#define glGetShaderInfoLog glGetShaderInfoLog_ptr
+#define glDeleteShader glDeleteShader_ptr
+
+// Shader programs.
+#define glCreateProgram glCreateProgram_ptr
+#define glAttachShader glAttachShader_ptr
+#define glLinkProgram glLinkProgram_ptr
+#define glGetProgramiv glGetProgramiv_ptr
+#define glGetProgramInfoLog glGetProgramInfoLog_ptr
+#define glDetachShader glDetachShader_ptr
+#define glDeleteProgram glDeleteProgram_ptr
+
+// Program use and uniforms.
+#define glUseProgram glUseProgram_ptr
+#define glUniformMatrix4fv glUniformMatrix4fv_ptr
+#define glUniform1f glUniform1f_ptr
+#define glGetUniformLocation glGetUniformLocation_ptr
+#define glUniform3fv glUniform3fv_ptr
+#define glUniform1i glUniform1i_ptr

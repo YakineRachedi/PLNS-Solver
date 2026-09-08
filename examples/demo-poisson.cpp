@@ -1,572 +1,371 @@
-#include <algorithm>
-#include <cmath>
-#include <cstdio>
-#include <cstdlib>
-#include <vector>
-#include <cstring>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
-#include <GLFW/glfw3.h>
+#include "gl_utils.h"
 
-#include "imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_opengl3.h"
+#include "imgui/imgui.h"
+
 #include "tiny_expr/tinyexpr.h"
 
-#include "math_utils.h"
 #include "cube.h"
+#include "logging.h"
 #include "mesh.h"
+#include "mesh_bounds.h"
+#include "mesh_gpu.h"
+#include "mesh_io.h"
+#include "ndc.h"
 #include "poisson.h"
+#include "shaders.h"
+#include "sphere.h"
+#include "viewer.h"
 
+// Viewer config
+float bgcolor[4] = { 0.3, 0.3, 0.3, 1.0 };
+bool draw_surface = true;
+bool draw_edges = false;
+float scale_min;
+float scale_max;
+float mesh_deform = 0;
 
-/******************************************************************************
- * Demo parameters
- *****************************************************************************/
+// FEM interaction
+bool autoscale = true;
+bool started = false;
+bool one_step = false;
+bool reset = false;
+int iter_per_frame = 1;
 
-static bool running = true;
-static int iterations_per_frame = 5;
-static double tolerance = 1e-6;
+// RHS expression of the PDE
+char rhs_expression[128] = "cos(35 * y * sin(27 + 13 * x^2 + 19 * z^2 - 13 * x * z))";
+bool rhs_show_error = false;
+double rhs_x, rhs_y, rhs_z, rhs_p, rhs_t, rhs_r;
 
-/*
- * Isometric view parameters.
- *
- * yaw   : rotation around the vertical (Y) axis, in radians.
- * pitch : tilt angle used to obtain the isometric look, in radians.
- *
- * The user can adjust yaw interactively; pitch is kept fixed at the
- * classic isometric angle but is exposed as a variable in case a future
- * version wants to make it adjustable too.
- */
-static float view_yaw   = 0.78539816f; /* 45 degrees   */
-static float view_pitch = 0.61547971f; /* ~35.26 degrees (isometric tilt) */
+te_variable rhs_vars[] = { { "x", &rhs_x },	{ "y", &rhs_y }, { "z", &rhs_z },	{ "phi", &rhs_p },
+							{ "theta", &rhs_t }, { "rand", &rhs_r } };
+te_expr *te_rhs = NULL;
 
+static void rescale_and_recenter_mesh(Mesh & mesh);
+static void init_camera_for_mesh(const Mesh & mesh, Camera & camera);
+static void update_all(PoissonSolver & solver, Mesh & mesh, GPUMesh & mesh_gpu);
+static void draw_scene(const Viewer & viewer, GLuint shader, const GPUMesh & gpu_mesh);
+static void draw_gui(PoissonSolver & solver);
+static void key_cb(int key, int action, int mods, void *args);
+static void get_attr_bounds(const Mesh & m, float *attr_min, float *attr_max);
 
-/******************************************************************************
- * Compute the minimum and maximum values of a scalar field.
- *
- * These values are used to normalize the solution before converting it into
- * colors.
- *****************************************************************************/
+bool new_rhs(PoissonSolver & solver) {
+	srand((int)time(NULL));
+	te_expr *test = te_compile(rhs_expression, rhs_vars, sizeof(rhs_vars) / sizeof(rhs_vars[0]), NULL);
+	if (!test)
+		return false;
 
-static void get_bounds(const double *V, size_t N, double & min_value, double & max_value) {
-    if (N == 0) {
-        min_value = 0.0;
-        max_value = 0.0;
-        return;
-    }
+	te_free(te_rhs);
+	te_rhs = test;
+	for (size_t i = 0; i < solver.N; ++i) {
+		rhs_x = solver.m.positions[i].x;
+		rhs_y = solver.m.positions[i].y;
+		rhs_z = solver.m.positions[i].z;
+		rhs_p = atan2(rhs_y, rhs_x);
+		rhs_t = atan2(sqrt(rhs_x * rhs_x + rhs_y * rhs_y), rhs_z);
+		rhs_r = (double)rand() / RAND_MAX;
+		solver.f[i] = te_eval(te_rhs);
+	}
 
-    min_value = V[0];
-    max_value = V[0];
+	solver.init_cg();
+	solver.iterate = 0;
 
-    for (size_t i = 1; i < N; ++i) {
+	return true;
+}
 
-        if (V[i] < min_value)
-            min_value = V[i];
-
-        if (V[i] > max_value)
-            max_value = V[i];
-    }
+void transfer_to_mesh(const TArray<double> & V, Mesh & m) {
+	m.attr.resize(m.vertex_count());
+	for (size_t i = 0; i < m.vertex_count(); ++i) {
+		m.attr[i] = V[i];
+	}
 }
 
 
-/******************************************************************************
- * Convert a scalar value into a color.
- *
- * The color scale is:
- *
- *     low value  -> blue
- *     middle     -> green
- *     high value -> red
- *
- * The input value x is assumed to be normalized between 0 and 1.
- *****************************************************************************/
 
-static ImU32 scalar_to_color(double x) {
-    if (x < 0.0) x = 0.0;
-    if (x > 1.0) x = 1.0;
-
-    int r = 0;
-    int g = 0;
-    int b = 0;
-
-    if (x < 0.5) {
-
-        /*
-         * Blue -> Green
-         */
-
-        double t = 2.0 * x;
-
-        r = 0;
-        g = static_cast<int>(255.0 * t);
-        b = static_cast<int>(255.0 * (1.0 - t));
-
-    } else {
-
-        /*
-         * Green -> Red
-         */
-
-        double t = 2.0 * (x - 0.5);
-
-        r = static_cast<int>(255.0 * t);
-        g = static_cast<int>(255.0 * (1.0 - t));
-        b = 0;
-    }
-
-    return IM_COL32(r, g, b, 255);
+static void rescale_and_recenter_mesh(Mesh & mesh) {
+	Aabb bbox = compute_mesh_bounds(mesh);
+	Vec3 model_center = (bbox.min + bbox.max) * 0.5f;
+	Vec3 model_extent = (bbox.max - bbox.min);
+	float model_size = max(model_extent);
+	if (model_size == 0) {
+		printf("Warning : Mesh is empty or reduced to a point.\n");
+		model_size = 1;
+	}
+	for (size_t i = 0; i < mesh.vertex_count(); ++i) {
+		mesh.positions[i] -= model_center;
+		mesh.positions[i] /= (model_size / 2);
+	}
 }
 
-
-/******************************************************************************
- * A vertex projected onto the screen.
- *
- * screen : 2D window-space coordinates, ready to be drawn by ImGui.
- * depth  : view-space depth after rotation, used later for back-to-front
- *          triangle sorting (the painter's algorithm). Larger values are
- *          farther from the viewer.
- *****************************************************************************/
-struct ProjectedVertex {
-    ImVec2 screen;
-    float  depth;
-};
-
-
-/******************************************************************************
- * Project a 3D mesh vertex onto the 2D screen using an isometric view.
- *
- * Unlike a flat XY projection, this rotates the point around the vertical
- * (Y) axis by `yaw`, then tilts it by `pitch` (the classic isometric angle,
- * arctan(1/sqrt(2)) ~= 35.264 degrees). This way all three axes (X, Y, Z)
- * contribute visibly to the 2D projection, giving the mesh actual depth
- * instead of collapsing every face onto a single flat square.
- *
- * The resulting depth value (view-space Z after rotation) is also
- * returned, so that triangles can later be sorted back-to-front before
- * being drawn.
- *
- * @param p      Mesh vertex position, expected to lie roughly in [-1,1]^3.
- * @param origin Top-left corner of the drawing area, in screen coordinates.
- * @param size   Size of the drawing area, in screen pixels.
- * @param scale  Additional scale factor controlling the on-screen size of
- *               the mesh.
- * @param yaw    Rotation around the Y axis, in radians.
- * @param pitch  Tilt angle applied after the yaw rotation, in radians.
- *****************************************************************************/
-
-static ProjectedVertex project_vertex(const Vec3 & p, ImVec2 origin, ImVec2 size,
-                                       float scale, float yaw, float pitch) {
-
-    /* Rotate around the Y (vertical) axis by `yaw`. */
-    float cy = std::cos(yaw);
-    float sy = std::sin(yaw);
-
-    float x1 = p.x * cy + p.z * sy;
-    float z1 = -p.x * sy + p.z * cy;
-    float y1 = p.y;
-
-    /* Tilt around the X axis by `pitch` to obtain the isometric look. */
-    float cp = std::cos(pitch);
-    float sp = std::sin(pitch);
-
-    float y2 = y1 * cp - z1 * sp;
-    float z2 = y1 * sp + z1 * cp;
-
-    /* Map to screen coordinates, centered in the drawing area.
-     * Screen Y grows downward, so the vertical axis is flipped. */
-    float screen_x = origin.x + size.x * 0.5f + x1 * scale;
-    float screen_y = origin.y + size.y * 0.5f - y2 * scale;
-
-    ProjectedVertex out;
-    out.screen = ImVec2(screen_x, screen_y);
-    out.depth  = z2;
-
-    return out;
+static void init_camera_for_mesh(const Mesh & mesh, Camera & camera) {
+	Aabb bbox = compute_mesh_bounds(mesh);
+	Vec3 model_center = (bbox.min + bbox.max) * 0.5f;
+	Vec3 model_extent = (bbox.max - bbox.min);
+	float model_size = max(model_extent);
+	if (model_size == 0) {
+		printf("Warning : Mesh is empty or reduced to a point.\n");
+		model_size = 1;
+	}
+	camera.set_target(model_center);
+	Vec3 start_pos = (model_center + 2.f * Vec3(0, 0, model_size));
+	camera.set_position(start_pos);
+	camera.set_near(0.01 * model_size);
+	camera.set_far(100 * model_size);
 }
 
-
-/******************************************************************************
- * Draw the mesh and a scalar field using an isometric 3D projection.
- *
- * Each triangle receives a color corresponding to the average value of the
- * scalar field at its three vertices.
- *
- * Because ImGui's drawing API has no depth buffer, triangles are sorted
- * back-to-front (the classic painter's algorithm) before being drawn, so
- * that nearer faces correctly occlude farther ones.
- *
- * This is deliberately simple:
- *
- *     - no shaders;
- *     - no GPU mesh;
- *     - no OpenGL vertex buffers;
- *     - no texture.
- *
- * The visualization is performed using ImGui's drawing API.
- *****************************************************************************/
-
-static void draw_scalar_field(const Mesh & mesh, const double *V, ImVec2 origin, ImVec2 size,
-                               float scale, float yaw, float pitch) {
-
-    ImDrawList *draw_list = ImGui::GetWindowDrawList();
-
-    size_t vtx_count = mesh.vertex_count();
-    size_t tri_count = mesh.triangle_count();
-
-    /* Compute the scalar range. */
-
-    double min_value;
-    double max_value;
-
-    get_bounds(V, vtx_count, min_value, max_value);
-    double range = max_value - min_value;
-
-    if (std::abs(range) < 1e-15)
-        range = 1.0;
-
-    /*
-     * Project every mesh vertex once, storing both its screen position
-     * and its view-space depth.
-     */
-    std::vector<ProjectedVertex> projected(vtx_count);
-
-    for (size_t i = 0; i < vtx_count; ++i) {
-        projected[i] = project_vertex(mesh.positions[i], origin, size, scale, yaw, pitch);
-    }
-
-    /*
-     * Compute the average depth of every triangle, then build an index
-     * array sorted from farthest to nearest (painter's algorithm).
-     */
-    std::vector<float>  tri_depth(tri_count);
-    std::vector<size_t> tri_order(tri_count);
-
-    for (size_t t = 0; t < tri_count; ++t) {
-        uint32_t a = mesh.indices[3 * t + 0];
-        uint32_t b = mesh.indices[3 * t + 1];
-        uint32_t c = mesh.indices[3 * t + 2];
-
-        float depth = (projected[a].depth + projected[b].depth + projected[c].depth) / 3.0f;
-
-        tri_depth[t] = depth;
-        tri_order[t] = t;
-    }
-
-    /* Farthest triangles (largest depth) are drawn first. */
-    std::sort(tri_order.begin(), tri_order.end(),
-              [&](size_t i, size_t j) { return tri_depth[i] > tri_depth[j]; });
-
-    /* Draw all triangles, back to front. */
-
-    for (size_t k = 0; k < tri_count; ++k) {
-        size_t t = tri_order[k];
-
-        uint32_t a = mesh.indices[3 * t + 0];
-        uint32_t b = mesh.indices[3 * t + 1];
-        uint32_t c = mesh.indices[3 * t + 2];
-
-        ImVec2 A = projected[a].screen;
-        ImVec2 B = projected[b].screen;
-        ImVec2 C = projected[c].screen;
-
-        /* Compute the average solution value on the triangle */
-
-        double value = (V[a] + V[b] + V[c]) / 3.0;
-
-        /* Normalize the value */
-
-        double normalized = (value - min_value) / range;
-
-        /* Convert the value into a color. */
-
-        ImU32 color = scalar_to_color(normalized);
-
-        /* Draw the filled triangle */
-
-        draw_list->AddTriangleFilled(A, B, C, color);
-
-        /* Draw the triangle edges */
-
-        draw_list->AddTriangle(A, B, C, IM_COL32(255, 255, 255, 100), 1.0f);
-    }
+static void get_attr_bounds(const Mesh & m, float *attr_min, float *attr_max) {
+	if (!m.vertex_count())
+		return;
+	float min = m.attr[0];
+	float max = min;
+	for (size_t i = 1; i < m.vertex_count(); ++i) {
+		if (m.attr[i] < min) {
+			min = m.attr[i];
+		} else if (m.attr[i] > max) {
+			max = m.attr[i];
+		}
+	}
+	*attr_min = min;
+	*attr_max = max;
 }
 
-/******************************************************************************
- * Initialize the right-hand side.
- *
- * The Poisson problem is:
- *
- *     -Delta(u) = f
- *
- * The mesh is the surface of a cube. Therefore we cannot use a product such
- * as sin(pi*x) * sin(pi*y) * sin(pi*z), because at every point of the cube
- * at least one coordinate is equal to +/-1 and the product would be zero.
- *
- * We therefore use a sum:
- *
- *     f(x,y,z) = sin(pi*x) + sin(pi*y) + sin(pi*z)
- *
- * This produces a non-zero scalar field over the cube surface.
- *****************************************************************************/
-
-static void initialize_rhs(PoissonSolver &solver) {
-    for (size_t i = 0; i < solver.N; ++i) {
-        const Vec3 &p = solver.m.positions[i];
-
-        solver.f[i] =
-            std::sin(PI * p.x) +
-            std::sin(PI * p.y) +
-            std::sin(PI * p.z);
-    }
-
-    /*
-     * The right-hand side has changed, so the Conjugate Gradient solver
-     * must be initialized again from this new f.
-     */
-    solver.init_cg();
-
-    solver.iterate = 0;
+static void update_all(PoissonSolver & solver, Mesh & mesh, GPUMesh & gpu_mesh) {
+	bool needs_upload = true;
+	if (started || one_step) {
+		solver.do_iterate(iter_per_frame, 1e-6);
+		if (one_step) {
+			one_step = false;
+		}
+		transfer_to_mesh(solver.u, mesh);
+		if (autoscale) {
+			get_attr_bounds(mesh, &scale_min, &scale_max);
+		}
+	} else if (reset) {
+		solver.clear_solution();
+		transfer_to_mesh(solver.f, mesh);
+		get_attr_bounds(mesh, &scale_min, &scale_max);
+		reset = false;
+	} else {
+		needs_upload = false;
+	}
+	if (needs_upload) {
+		gpu_mesh.update_attr();
+	}
+	if (solver.converged) {
+		started = false;
+	}
 }
+
+static void draw_scene(const Viewer & viewer, GLuint shader, const GPUMesh & gpu_mesh) {
+	glClearColor(bgcolor[0], bgcolor[1], bgcolor[2], bgcolor[3]);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	glEnable(GL_DEPTH_TEST);
+	glDepthMask(GL_TRUE);
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	const Camera &camera = viewer.camera;
+
+	glUseProgram(shader);
+
+	Mat4 proj = camera.view_to_clip();
+	Mat4 vm = camera.world_to_view();
+	Vec3 camera_pos = camera.get_position();
+
+	GLint vm_loc = glGetUniformLocation(shader, "vm");
+	GLint proj_loc = glGetUniformLocation(shader, "proj");
+	GLint camera_pos_loc = glGetUniformLocation(shader, "camera_pos");
+	GLint scale_min_loc = glGetUniformLocation(shader, "scale_min");
+	GLint scale_max_loc = glGetUniformLocation(shader, "scale_max");
+	GLint deform_loc = glGetUniformLocation(shader, "deform");
+	GLint lighting_loc = glGetUniformLocation(shader, "lighting");
+
+	glUniformMatrix4fv(vm_loc, 1, GL_FALSE, &vm(0, 0));
+	glUniformMatrix4fv(proj_loc, 1, GL_FALSE, &proj(0, 0));
+	glUniform3fv(camera_pos_loc, 1, &camera_pos[0]);
+	glUniform1f(scale_min_loc, scale_min);
+	glUniform1f(scale_max_loc, scale_max);
+	glUniform1f(deform_loc, mesh_deform);
+
+	if (draw_surface) {
+		glEnable(GL_POLYGON_OFFSET_FILL);
+
+		float offset = reversed_z ? -1.f : 1.f;
+		glPolygonOffset(offset, offset);
+
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glUniform1i(lighting_loc, GL_TRUE);
+
+		gpu_mesh.draw();
+	}
+
+	if (draw_edges) {
+		glDisable(GL_POLYGON_OFFSET_FILL);
+		glPolygonOffset(0.f, 0.f);
+
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glUniform1i(lighting_loc, GL_FALSE);
+
+		gpu_mesh.draw();
+	}
+
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glDisable(GL_BLEND);
+}
+
+static void draw_gui(PoissonSolver & solver) {
+	ImGui::Begin("Controls");
+	ImGui::Text("Solves -\\Delta u = f");
+	ImGui::Text("--------------------");
+
+	ImGui::Text("Enter math expression for f below:");
+	ImGui::Text("(available variables : x, y, z, theta, phi, rand)");
+	ImGui::InputText("", rhs_expression, IM_ARRAYSIZE(rhs_expression));
+	if (ImGui::Button("Apply")) {
+		if (!new_rhs(solver)) {
+			rhs_show_error = true;
+		}
+		started = false;
+		reset = true;
+	}
+	if (rhs_show_error) {
+		ImGui::Begin("Error");
+		ImGui::Text("Syntax error in expresion (missing * ?)");
+		if (ImGui::Button("Got it!")) {
+			rhs_show_error = false;
+		}
+		ImGui::End();
+	}
+
+	ImGui::Text(" ");
+	ImGui::Text("Solution value is represented by color :");
+	ImGui::Text("Red = low value, Green = mid, Blue = high.");
+	ImGui::Text("Shows f at iter 0, then successive u_n iterates of cg.");
+	ImGui::Text(" ");
+
+	if (ImGui::Button("Start")) {
+		started = true;
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Stop")) {
+		started = false;
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("One step")) {
+		if (!started) {
+			one_step = true;
+		}
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Reset")) {
+		reset = true;
+	}
+
+	ImGui::Text(" ");
+	ImGui::Text("Iterate : %zu", solver.iterate);
+	ImGui::Text("Relative error : %g", solver.rel_error);
+	ImGui::Text("Scale min %.2f Scale max %.2f  (Span : %g)", scale_min, scale_max, scale_max - scale_min);
+	ImGui::Text(" ");
+	ImGui::Text("Controls :");
+	ImGui::Checkbox("Autoscale", &autoscale);
+	ImGui::Checkbox("Show edges", &draw_edges);
+	ImGui::Text("Iterations per frame :");
+	ImGui::DragInt(" ", &iter_per_frame, 1, 1, 20);
+	ImGui::Text("Artificially deform mesh according to u :");
+	ImGui::Text("(may help visualize oscillations of u)");
+	ImGui::DragFloat("  ", &mesh_deform, 0.01f, 0.f, 1.f);
+	ImGui::Text(" ");
+	ImGui::Text("Number of DOF : %zu", solver.N);
+	float fps = ImGui::GetIO().Framerate;
+	ImGui::Text("Average framerate : %.1f FPS", fps);
+	ImGui::Text(" ");
+	ImGui::Text("Mouse :");
+	ImGui::Text("Click + drag : orbit");
+	ImGui::Text("Click + CTRL + drag : zoom in/out");
+	ImGui::Text("Click + SHIFT + drag : translate");
+	ImGui::End();
+}
+
+static void key_cb(int key, int action, int mods, void *args) {
+	(void)mods;
+	(void)args;
+	if (key == GLFW_KEY_S && action == GLFW_PRESS) {
+		draw_surface = !draw_surface;
+		return;
+	}
+	if (key == GLFW_KEY_E && action == GLFW_PRESS) {
+		draw_edges = !draw_edges;
+		return;
+	}
+}
+
 
 int main() {
+	log_init(0);
 
-    if (!glfwInit()) {
+	Mesh mesh;
+	if (load_cube(mesh, 20)) {
+		LOG_MSG("Error loading cube mesh.");
+		exit(EXIT_FAILURE);
+	}
+	LOG_MSG("Loaded mesh.");
+	rescale_and_recenter_mesh(mesh);
+	LOG_MSG("Mesh rescaled and recentered.");
 
-        printf("Error: GLFW initialization failed.\n");
+	// Prepare FEM data
+	PoissonSolver solver(mesh);
+	if (!new_rhs(solver)) {
+		LOG_MSG("Error loading rhs (expression flawed ?).");
+		exit(EXIT_FAILURE);
+	}
+	transfer_to_mesh(solver.f, mesh);
+	get_attr_bounds(mesh, &scale_min, &scale_max);
+	LOG_MSG("Prepared FEM data.");
 
-        return EXIT_FAILURE;
-    }
+	// Get an OpenGL context through a viewer app
+	Viewer viewer;
+	init_camera_for_mesh(mesh, viewer.camera);
+	viewer.init("Poisson solver");
 
-    // Create a window.
+	if (!init_gl()) {
+		LOG_MSG("Error initializing OpenGL functions.");
+		exit(EXIT_FAILURE);
+	}
 
-    GLFWwindow *window = glfwCreateWindow(1200, 800, "PLNS Solver - Poisson Demo", NULL, NULL);
+	viewer.register_key_callback({ key_cb, NULL });
+	LOG_MSG("Viewer initialized.");
 
-    if (!window) {
+	// Prepare GPU data
+	const char *vert_shader = "../shaders/fem.vert";
+	const char *frag_shader = "../shaders/fem.frag";
 
-        printf("Error: window creation failed.\n");
-        glfwTerminate();
+	GLuint shader = create_shader(vert_shader, frag_shader);
+	if (!shader) {
+		exit(EXIT_FAILURE);
+	}
+	LOG_MSG("Shader initialized.");
 
-        return EXIT_FAILURE;
-    }
+	GPUMesh gpu_mesh;
+	gpu_mesh.m = &mesh;
+	gpu_mesh.upload();
 
+	// Main Loop
+	while (!viewer.should_close()) {
+		viewer.poll_events();
+		update_all(solver, mesh, gpu_mesh);
+		viewer.begin_frame();
+		draw_scene(viewer, shader, gpu_mesh);
+		draw_gui(solver);
+		viewer.end_frame();
+	}
 
-    glfwMakeContextCurrent(window);
-    glfwSwapInterval(1);
+	viewer.fini();
+	log_fini();
 
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO & io = ImGui::GetIO();
-
-    (void)io;
-
-    // Use the dark ImGui theme
-
-    ImGui::StyleColorsDark();
-
-    // Initialize GLFW and OpenGL backends
-
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 130");
-
-
-    /**************************************************************************
-     * Build the mesh.
-     *
-     * For now we use a cube surface.
-     *
-     * The cube is subdivided and duplicate vertices are removed by:
-     *
-     *     load_cube()
-     *
-     *************************************************************************/
-
-    Mesh mesh;
-
-    size_t subdiv = 20;
-
-    if (load_cube(mesh, subdiv)) {
-
-        printf("Error: unable to create mesh.\n");
-
-        return EXIT_FAILURE;
-    }
-
-    printf("Mesh created:\n");
-
-    printf("  vertices  : %zu\n", mesh.vertex_count());
-    printf("  triangles : %zu\n", mesh.triangle_count());
-
-    PoissonSolver solver(mesh);
-    initialize_rhs(solver);
-
-    while (!glfwWindowShouldClose(window)) {
-
-        glfwPollEvents();
-
-        // Start a new ImGui frame
-
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-
-        // Perform Poisson iterations
-        if (running && !solver.converged) {
-            solver.do_iterate(iterations_per_frame, tolerance);
-        }
-
-        // Stop automatically when convergence is reached
-        if (solver.converged) running = false;
-
-        ImGui::Begin("Poisson Solver");
-        ImGui::Text("Finite Element Poisson Solver");
-        ImGui::Separator();
-        ImGui::Text("Equation:");
-        ImGui::Text("-Delta u = f");
-        ImGui::Separator();
-        ImGui::Text("Mesh");
-        ImGui::Text("Vertices: %zu", mesh.vertex_count());
-        ImGui::Text("Triangles: %zu", mesh.triangle_count());
-        ImGui::Separator();
-        ImGui::Text("Solver");
-        ImGui::Text("Iterations: %zu", solver.iterate);
-        ImGui::Text("Relative residual: %.3e", solver.rel_error);
-        ImGui::Text("Tolerance: %.3e", tolerance);
-        ImGui::Separator();
-        if (ImGui::Button("Start")) {running = true;}
-        ImGui::SameLine();
-        if (ImGui::Button("Stop")) {running = false;}
-
-        /* One iteration */
-
-        if (ImGui::Button("One step")) {
-            if (!solver.converged) {
-                solver.do_iterate(1, tolerance);
-            }
-        }
-
-        if (ImGui::Button("Reset")) {
-            running = false;
-            solver.clear_solution();
-        }
-
-
-        ImGui::Separator();
-        ImGui::SliderInt("Iterations / frame", &iterations_per_frame, 1, 100);
-        ImGui::Separator();
-        ImGui::SliderAngle("View rotation", &view_yaw, -180.0f, 180.0f);
-        ImGui::Separator();
-
-        if (solver.converged) {
-            ImGui::Text("Status: CONVERGED");
-        }
-        else if (running) {
-            ImGui::Text("Status: RUNNING");
-        }
-        else {ImGui::Text("Status: STOPPED");}
-
-        ImGui::End();
-
-        // Visualization window.
-
-        ImGui::SetNextWindowSize(
-            ImVec2(700.0f, 700.0f),
-            ImGuiCond_FirstUseEver
-        );
-
-        ImGui::Begin("Solution");
-
-        /*
-        * Get the space available inside the window.
-        */
-        ImVec2 available = ImGui::GetContentRegionAvail();
-
-        /*
-        * Keep a square visualization.
-        */
-        float area_size = std::min(available.x, available.y);
-
-        /*
-        * Avoid passing a zero-sized rectangle to ImGui.
-        */
-        if (area_size <= 0.0f) {
-            ImGui::End();
-        }
-        else {
-
-            ImVec2 origin = ImGui::GetCursorScreenPos();
-            ImVec2 draw_size(area_size, area_size);
-
-            /*
-            * Scale the mesh.
-            */
-            float scale = area_size * 0.35f;
-
-            /*
-            * Create the interactive area.
-            */
-            ImGui::InvisibleButton(
-                "view_drag_area",
-                draw_size
-            );
-
-            /*
-            * Draw the visualization.
-            */
-            ImDrawList *draw_list =
-                ImGui::GetWindowDrawList();
-
-            draw_list->AddRectFilled(
-                origin,
-                ImVec2(
-                    origin.x + draw_size.x,
-                    origin.y + draw_size.y
-                ),
-                IM_COL32(30, 30, 30, 255)
-            );
-
-            draw_scalar_field(
-                mesh,
-                solver.u.data,
-                origin,
-                draw_size,
-                scale,
-                view_yaw,
-                view_pitch
-            );
-
-            /*
-            * Rotate the view with the mouse.
-            */
-            if (ImGui::IsItemActive() &&
-                ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
-
-                ImVec2 delta =
-                    ImGui::GetIO().MouseDelta;
-
-                view_yaw += delta.x * 0.01f;
-            }
-
-        ImGui::End();
-        }
-        ImGui::Render();
-
-
-        int display_width;
-        int display_height;
-
-
-        glfwGetFramebufferSize(window, &display_width, &display_height);
-        glViewport(0, 0, display_width, display_height);
-        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-        glfwSwapBuffers(window);
-    }
-
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
-    glfwDestroyWindow(window);
-    glfwTerminate();
-
-    return EXIT_SUCCESS;
+	return (EXIT_SUCCESS);
 }

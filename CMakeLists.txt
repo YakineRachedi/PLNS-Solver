@@ -71,6 +71,12 @@ add_library(PLNS-solver
     src/mesh/mesh_bounds.cpp
     src/mesh/mesh_io.cpp
     src/mesh/mesh_gpu.cpp
+    src/viewer/camera.cpp
+    src/viewer/frustum.cpp
+    src/viewer/mouse.cpp
+    src/viewer/shaders.cpp
+    src/viewer/trackball.cpp
+    src/viewer/viewer.cpp
     )
 
 target_include_directories(PLNS-solver PUBLIC
@@ -80,6 +86,7 @@ target_include_directories(PLNS-solver PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include/matrix
     ${CMAKE_CURRENT_SOURCE_DIR}/include/mesh
     ${CMAKE_CURRENT_SOURCE_DIR}/include/fem
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/viewer
     ${CMAKE_CURRENT_SOURCE_DIR}/extern
 )
 

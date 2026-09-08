@@ -8,13 +8,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "gl_utils.h"
 
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
 
 #include "viewer.h"
+#include "gl_utils.h"
 
 #include "camera.h"
 #include "mouse.h"
@@ -23,11 +23,6 @@
 
 #define ZOOM_SENSITIVITY 0.3f /* for mouse zoom */
 
-#ifndef __APPLE__
-static void GL_debug_cb(GLenum source, GLenum type, GLuint id, GLenum severity,
-			GLsizei length, const GLchar *message,
-			const void *user_param);
-#endif
 static void mouse_button_cb(GLFWwindow *window, int button, int action,
 			    int mods);
 static void cursor_pos_cb(GLFWwindow *window, double x, double y);
@@ -35,52 +30,63 @@ static void scroll_cb(GLFWwindow *window, double xoffset, double yoffset);
 static void key_cb(GLFWwindow *window, int key, int scancode, int action,
 		   int mods);
 static void resize_window_cb(GLFWwindow *window, int width, int height);
-
 void Viewer::init(const char *name) {
-	this->name = name;
+    this->name = name;
 
-	/* Set-up GLFW and */
-	if (!glfwInit()) {
-		printf("Cannot initialize GLFW.\n");
-		exit(EXIT_FAILURE);
-	}
+    // Set-up GLFW.
 
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-	glfwWindowHint(GLFW_DOUBLEBUFFER, GL_TRUE);
-	glfwWindowHint(GLFW_DEPTH_BITS, 32);
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-	glfwWindowHint(GLFW_SAMPLES, 4);
-	window = glfwCreateWindow(1920, 1080, name, NULL, NULL);
-	if (!window) {
-		printf("Cannot create GLFW window.\n");
-		exit(EXIT_FAILURE);
-	}
-	glfwGetWindowSize(window, &width, &height);
-	camera.set_aspect((float)width / height);
-	glfwSetWindowUserPointer(window, this);
-	glfwMakeContextCurrent(window);
-	glfwSetKeyCallback(window, key_cb);
-	glfwSetFramebufferSizeCallback(window, resize_window_cb);
-	glfwSetCursorPosCallback(window, cursor_pos_cb);
-	glfwSetMouseButtonCallback(window, mouse_button_cb);
-	glfwSetScrollCallback(window, scroll_cb);
-	glfwSwapInterval(0);
+    if (!glfwInit()) {
+        printf("Cannot initialize GLFW.\n");
+        exit(EXIT_FAILURE);
+    }
 
-	/* Allow OpenGL debug messages */
-#ifndef __APPLE__
-	glEnable(GL_DEBUG_OUTPUT);
-	glDebugMessageCallback(GL_debug_cb, NULL);
-#endif
-	/* Set-up OpenGL for our choice of NDC */
-	set_up_opengl_for_ndc();
+    // Request OpenGL 4.1.
 
-	/* Set-up Imgui */
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGui::StyleColorsDark();
-	ImGui_ImplGlfw_InitForOpenGL(window, true);
-	ImGui_ImplOpenGL3_Init("#version 150");
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+    glfwWindowHint(GLFW_DOUBLEBUFFER, GL_TRUE);
+    glfwWindowHint(GLFW_DEPTH_BITS, 32);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_SAMPLES, 4);
+
+    window = glfwCreateWindow(
+        1920,
+        1080,
+        name,
+        NULL,
+        NULL
+    );
+
+    if (!window) {
+        printf("Cannot create GLFW window.\n");
+        glfwTerminate();
+        exit(EXIT_FAILURE);
+    }
+
+    glfwGetWindowSize(window, &width, &height);
+
+    camera.set_aspect((float)width / height);
+
+    glfwSetWindowUserPointer(window, this);
+
+    glfwMakeContextCurrent(window);
+
+    glfwSetKeyCallback(window, key_cb);
+    glfwSetFramebufferSizeCallback(window, resize_window_cb);
+    glfwSetCursorPosCallback(window, cursor_pos_cb);
+    glfwSetMouseButtonCallback(window, mouse_button_cb);
+    glfwSetScrollCallback(window, scroll_cb);
+
+    glfwSwapInterval(0);
+
+    set_up_opengl_for_ndc();
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 410");
 }
 
 void Viewer::register_key_callback(KeyCallback cb) { key_callback = cb ;}
@@ -109,23 +115,6 @@ void Viewer::fini() {
 	window = NULL;
 	glfwTerminate();
 }
-
-#ifndef __APPLE__
-static void GL_debug_cb(GLenum source, GLenum type, GLuint id, GLenum severity,
-			GLsizei length, const GLchar *message,
-			const void *user_param) {
-	(void)source;
-	(void)length;
-	(void)user_param;
-	(void)id;
-	if (type == GL_DEBUG_TYPE_ERROR) {
-		printf("GL CALLBACK: %s type = 0x%x, severity = 0x%x,\
-			message = %s\n",
-		       type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "",
-		       type, severity, message);
-	}
-}
-#endif
 
 static void mouse_button_cb(GLFWwindow *window, int button, int action, int mods) {
 	if (ImGui::GetIO().WantCaptureMouse) {
