@@ -341,8 +341,8 @@ int main() {
 	LOG_MSG("Viewer initialized.");
 
 	// Prepare GPU data
-	const char *vert_shader = "../shaders/fem.vert";
-	const char *frag_shader = "../shaders/fem.frag";
+	const char *vert_shader = "./shaders/fem.vert";
+	const char *frag_shader = "./shaders/fem.frag";
 
 	GLuint shader = create_shader(vert_shader, frag_shader);
 	if (!shader) {

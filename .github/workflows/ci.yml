@@ -42,7 +42,7 @@ jobs:
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
-          name: plns-solver-linux
+          name: plns-solver-poisson
           path: |
             build/demo-poisson
   release-demo:
