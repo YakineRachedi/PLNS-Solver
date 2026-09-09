@@ -42,9 +42,10 @@ jobs:
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
-          name: plns-solver-poisson
+          name: plns-solver
           path: |
             build/demo-poisson
+            build/demo-ns
   release-demo:
 
     name: Release demo
@@ -82,18 +83,18 @@ jobs:
       - name: Build demo
         run: |
           cmake --build build --target demo-poisson --parallel
+          cmake --build build --target demo-ns --parallel
 
       - name: Test demo
         run: |
-          timeout 10s xvfb-run --auto-servernum \
-            ./build/demo-poisson || test $? -eq 124
-
+          timeout 10s xvfb-run --auto-servernum ./build/demo-poisson || test $? -eq 124
+          timeout 10s xvfb-run --auto-servernum ./build/demo-ns || test $? -eq 124
       - name: Package demo
         run: |
-          tar -czf \
-            plns-solver-demo-${{ github.ref_name }}.tar.gz \
+          tar -czf plns-solver-demo-${{ github.ref_name }}.tar.gz \
             -C build \
-            demo-poisson
+            demo-poisson \
+            demo-ns
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

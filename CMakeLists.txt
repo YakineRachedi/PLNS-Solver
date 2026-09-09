@@ -231,3 +231,7 @@ add_custom_target(check
 add_executable(demo-poisson examples/demo-poisson.cpp)
 target_compile_options(demo-poisson PRIVATE -Wall -Wextra -Wno-missing-field-initializers)
 target_link_libraries(demo-poisson PRIVATE PLNS-solver tiny_expr)
+
+add_executable(demo-ns examples/demo-ns.cpp)
+target_compile_options(demo-ns PRIVATE -Wall -Wextra -Wno-missing-field-initializers)
+target_link_libraries(demo-ns PRIVATE PLNS-solver tiny_expr)
