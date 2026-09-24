@@ -50,6 +50,36 @@ target_link_libraries(imgui_glfw_opengl3 PUBLIC glfw OpenGL::GL)
 add_library(tiny_expr extern/tiny_expr/tinyexpr.c)
 target_include_directories(tiny_expr PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern)
 
+
+###############################################################################
+# Kokkos
+###############################################################################
+
+find_package(Kokkos QUIET)
+
+if (Kokkos_FOUND)
+    message(STATUS "Kokkos found locally: ${Kokkos_DIR}")
+else()
+    message(STATUS "Kokkos not found locally, fetching from GitHub...")
+
+    include(FetchContent)
+
+    FetchContent_Declare(
+      kokkos
+      GIT_REPOSITORY https://github.com/kokkos/kokkos.git
+      GIT_TAG        4.3.01
+    )
+
+    set(Kokkos_ENABLE_SERIAL ON  CACHE BOOL "" FORCE)
+    set(BUILD_SHARED_LIBS    OFF CACHE BOOL "" FORCE)
+
+    FetchContent_MakeAvailable(kokkos)
+endif()
+
+# Kokkos::kokkos exists in BOTH cases (find_package or FetchContent),
+# so this flag is independent of Kokkos_FOUND.
+set(KOKKOS_AVAILABLE TRUE)
+
 ###############################################################################
 # Library
 ###############################################################################
@@ -101,6 +131,10 @@ if (USE_OPENMP AND OpenMP_CXX_FOUND)
 	target_link_libraries(PLNS-solver PUBLIC OpenMP::OpenMP_CXX)
 endif()
 
+if (KOKKOS_AVAILABLE)
+    target_link_libraries(PLNS-solver PUBLIC Kokkos::kokkos)
+endif()
+
 set(TEST_TARGETS
     test_cg
     test_fem_matrix
@@ -114,6 +148,7 @@ set(TEST_TARGETS
     test_quat
     test_geometry
     test_rigid_transform
+    test_kokkos_intro
 )
 
 foreach(test_name ${TEST_TARGETS})
@@ -195,6 +230,7 @@ add_test(NAME test_mat4            COMMAND test_mat4)
 add_test(NAME test_quat            COMMAND test_quat)
 add_test(NAME test_geometry        COMMAND test_geometry)
 add_test(NAME test_rigid_transform COMMAND test_rigid_transform)
+add_test(NAME test_kokkos_intro COMMAND test_kokkos_intro)
 
 ###############################################################################
 # Run all tests
@@ -221,6 +257,7 @@ add_custom_target(check
         test_poisson_csr
         test_navier_stokes_fem
         test_navier_stokes_csr
+        test_kokkos_intro
 
 )
 
