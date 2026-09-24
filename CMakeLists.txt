@@ -9,9 +9,21 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(PLNS-SOLVER LANGUAGES CXX C)
 
-set(USE_OPENMP FALSE)
-if (USE_OPENMP)
-	find_package(OpenMP)
+
+###############################################################################
+# Optional HPC backends
+###############################################################################
+
+option(USE_OPENMP   "Enable OpenMP backend" OFF)
+option(USE_OPENBLAS "Enable OpenBLAS backend" OFF)
+option(USE_KOKKOS   "Enable Kokkos backend"  OFF)
+
+if(USE_OPENMP)
+    find_package(OpenMP REQUIRED)
+endif()
+
+if(USE_OPENBLAS)
+    find_package(BLAS REQUIRED)
 endif()
 
 ###############################################################################
@@ -52,33 +64,35 @@ target_include_directories(tiny_expr PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern)
 
 
 ###############################################################################
-# Kokkos
+# Kokkos (optional)
 ###############################################################################
 
 find_package(Kokkos QUIET)
+if (USE_KOKKOS)
 
-if (Kokkos_FOUND)
-    message(STATUS "Kokkos found locally: ${Kokkos_DIR}")
-else()
-    message(STATUS "Kokkos not found locally, fetching from GitHub...")
+    find_package(Kokkos QUIET)
 
-    include(FetchContent)
+    if (NOT Kokkos_FOUND)
+        message(STATUS "Kokkos not found locally, fetching from GitHub...")
 
-    FetchContent_Declare(
-      kokkos
-      GIT_REPOSITORY https://github.com/kokkos/kokkos.git
-      GIT_TAG        4.3.01
-    )
+        include(FetchContent)
 
-    set(Kokkos_ENABLE_SERIAL ON  CACHE BOOL "" FORCE)
-    set(BUILD_SHARED_LIBS    OFF CACHE BOOL "" FORCE)
+        FetchContent_Declare(
+            kokkos
+            GIT_REPOSITORY https://github.com/kokkos/kokkos.git
+            GIT_TAG 4.3.01
+        )
 
-    FetchContent_MakeAvailable(kokkos)
+        set(Kokkos_ENABLE_SERIAL ON CACHE BOOL "" FORCE)
+        set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
+        FetchContent_MakeAvailable(kokkos)
+    endif()
+
+    target_link_libraries(PLNS-solver PUBLIC Kokkos::kokkos)
+    target_compile_definitions(PLNS-solver PUBLIC USE_KOKKOS)
+
 endif()
-
-# Kokkos::kokkos exists in BOTH cases (find_package or FetchContent),
-# so this flag is independent of Kokkos_FOUND.
-set(KOKKOS_AVAILABLE TRUE)
 
 ###############################################################################
 # Library
@@ -126,14 +140,28 @@ target_link_libraries(PLNS-solver PUBLIC
 	OpenGL::GL
 )
 
-if (USE_OPENMP AND OpenMP_CXX_FOUND)
-	target_compile_options(PLNS-solver PRIVATE -DUSE_OPENMP)
-	target_link_libraries(PLNS-solver PUBLIC OpenMP::OpenMP_CXX)
+###############################################################################
+# Backend selection
+###############################################################################
+
+if(USE_OPENMP)
+    target_link_libraries(PLNS-solver PUBLIC OpenMP::OpenMP_CXX)
+    target_compile_definitions(PLNS-solver PUBLIC USE_OPENMP)
 endif()
 
-if (KOKKOS_AVAILABLE)
-    target_link_libraries(PLNS-solver PUBLIC Kokkos::kokkos)
+if(USE_OPENBLAS)
+    target_link_libraries(PLNS-solver PUBLIC BLAS::BLAS)
+    target_compile_definitions(PLNS-solver PUBLIC USE_OPENBLAS)
 endif()
+
+if(KOKKOS_AVAILABLE)
+    target_link_libraries(PLNS-solver PUBLIC Kokkos::kokkos)
+    target_compile_definitions(PLNS-solver PUBLIC USE_KOKKOS)
+endif()
+
+###############################################################################
+# Tests
+###############################################################################
 
 set(TEST_TARGETS
     test_cg
@@ -148,8 +176,11 @@ set(TEST_TARGETS
     test_quat
     test_geometry
     test_rigid_transform
-    test_kokkos_intro
 )
+
+if (USE_KOKKOS)
+    list(APPEND TEST_TARGETS test_kokkos_intro)
+endif()
 
 foreach(test_name ${TEST_TARGETS})
     add_executable(${test_name} src/tests/${test_name}.cpp)
@@ -213,7 +244,7 @@ foreach(variant IN ITEMS fem csr)
 endforeach()
 
 ###############################################################################
-# Tests
+# Enable testing
 ###############################################################################
 
 enable_testing()
@@ -230,7 +261,10 @@ add_test(NAME test_mat4            COMMAND test_mat4)
 add_test(NAME test_quat            COMMAND test_quat)
 add_test(NAME test_geometry        COMMAND test_geometry)
 add_test(NAME test_rigid_transform COMMAND test_rigid_transform)
-add_test(NAME test_kokkos_intro COMMAND test_kokkos_intro)
+
+if (USE_KOKKOS)
+    add_test(NAME test_kokkos_intro COMMAND test_kokkos_intro)
+endif()
 
 ###############################################################################
 # Run all tests
@@ -257,10 +291,12 @@ add_custom_target(check
         test_poisson_csr
         test_navier_stokes_fem
         test_navier_stokes_csr
-        test_kokkos_intro
-
+        
 )
 
+if (USE_KOKKOS)
+    add_dependencies(check test_kokkos_intro)
+endif()
 
 ###############################################################################
 # Demo
