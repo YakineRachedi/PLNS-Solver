@@ -2,13 +2,9 @@ name: PLNS-SOLVER CI
 
 on:
   push:
-    branches:
-      - master
+    branches: [ master ]
 
   pull_request:
-    branches:
-      - master
-
 
 jobs:
   build-and-test:
