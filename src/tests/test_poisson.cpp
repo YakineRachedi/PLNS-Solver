@@ -1,4 +1,5 @@
 #include "test_utils.h"
+#include "kokkos_utils.h"
 #include "test_meshes.h"
 #include "cube.h"
 #include "P1.h"
@@ -207,7 +208,9 @@ static void test_convergence_3d() {
           "Poisson 3D: solution contains only finite values");
 }
 
-int main() {
+int main(int argc, char** argv) {
+    
+    KokkosScope kokkos(argc, argv); 
     Mesh mesh;
     setup_unit_square_mesh(mesh);
 

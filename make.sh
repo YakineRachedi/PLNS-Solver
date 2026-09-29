@@ -3,40 +3,32 @@
 set -e
 
 echo "====================================="
-echo "  USAGE GUIDE"
+echo " PLNS-SOLVER build"
 echo "====================================="
-echo "  # Sequential"
-echo "  ./make.sh"
-echo ""
-echo "  # OpenMP"
-echo "  ./make.sh omp"
-echo ""
-echo "  # OpenBLAS"
-echo "  ./make.sh blas"
-echo ""
-echo "  # Kokkos"
-echo "  ./make.sh kokkos"
+echo "  ./make.sh          -> Sequential"
+echo "  ./make.sh omp      -> OpenMP"
+echo "  ./make.sh blas     -> OpenBLAS"
+echo "  ./make.sh kokkos   -> Kokkos"
 echo "====================================="
-echo
 
 BACKEND=${1:-seq}
 
-echo "====================================="
-echo " PLNS-SOLVER ($BACKEND)"
-echo "====================================="
-
 case $BACKEND in
     seq)
-        cmake -B build -G Ninja
+        BUILD=build-seq
+        CMAKE_FLAGS=""
         ;;
     omp)
-        cmake -B build -G Ninja -DUSE_OPENMP=ON
+        BUILD=build-omp
+        CMAKE_FLAGS="-DUSE_OPENMP=ON"
         ;;
     blas)
-        cmake -B build -G Ninja -DUSE_OPENBLAS=ON
+        BUILD=build-blas
+        CMAKE_FLAGS="-DUSE_OPENBLAS=ON"
         ;;
     kokkos)
-        cmake -B build -G Ninja
+        BUILD=build-kokkos
+        CMAKE_FLAGS="-DUSE_KOKKOS=ON"
         ;;
     *)
         echo "Usage: ./make.sh [seq|omp|blas|kokkos]"
@@ -44,12 +36,22 @@ case $BACKEND in
         ;;
 esac
 
-cmake --build build --parallel
+echo
+echo "Configuring ($BACKEND)..."
+cmake -S . -B $BUILD -G Ninja $CMAKE_FLAGS
+
+echo
+echo "Building..."
+cmake --build $BUILD --parallel
+
+echo
+echo "Running tests..."
+ctest --test-dir $BUILD --output-on-failure
 
 echo
 echo "Running demos..."
-./build/demo-poisson
-./build/demo-ns
+./$BUILD/demo-poisson
+./$BUILD/demo-ns
 
 echo
 echo "Build successful."

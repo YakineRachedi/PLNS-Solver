@@ -2,6 +2,7 @@
 #include <cmath>
 
 #include "test_utils.h"
+#include "kokkos_utils.h"
 #include "matrix.h"
 #include "conjugate_gradient.h"
 
@@ -63,7 +64,8 @@ struct TestMatrix : public Matrix {
  *
  *****************************************************************************/
 
-int main() {
+int main(int argc, char** argv) {
+    KokkosScope kokkos(argc, argv);
     TestMatrix A;
 
     /* Right-hand side */
