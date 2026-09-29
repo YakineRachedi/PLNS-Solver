@@ -4,5 +4,6 @@ Notes.txt
 **/build/
 **/.cache/
 build/
+build-*/
 !CMakeLists.txt
 imgui.ini
