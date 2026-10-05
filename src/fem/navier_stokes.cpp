@@ -136,7 +136,7 @@ void NavierStokesSolver::set_zero_mean(double *V) {
 	 *
 	 *     s = 1^T * M * V
 	 */
-	double s = blas_sum_in_place(Ap.data, N);
+	double s = blas_sum(Ap.data, N);
 
 	/*
 	 * Remove the mean value from every degree of freedom:

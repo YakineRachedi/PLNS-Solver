@@ -132,7 +132,7 @@ void PoissonSolver::set_zero_mean(double *V) {
 	M.mvp(V, Ap.data);
 
 	/* Compute the integral/sum associated with V. */
-	double s = blas_sum_in_place(Ap.data, N);
+	double s = blas_sum(Ap.data, N);
 
 	/* Remove the mean value. */
 	for (size_t i = 0; i < N; ++i) {
