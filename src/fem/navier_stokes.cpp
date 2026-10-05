@@ -10,6 +10,7 @@
 
 #ifdef USE_KOKKOS
     #include <Kokkos_Core.hpp>
+	#include <Kokkos_ScatterView.hpp>
 #endif
 
 #ifdef USE_OPENMP
@@ -191,27 +192,27 @@ void NavierStokesSolver::compute_transport(double *T) {
 	
 	#if defined(USE_KOKKOS)
 
+    Kokkos::View<double*> T_view(T, N);
+    Kokkos::Experimental::ScatterView<double*> T_scatter(T_view);
+
     Kokkos::parallel_for("transport", m.triangle_count(), KOKKOS_LAMBDA(const size_t t) {
-        
-		uint32_t a = m.indices[3*t+0];
-        uint32_t b = m.indices[3*t+1];
-        uint32_t c = m.indices[3*t+2];
+            auto T_access = T_scatter.access();
 
-        double sum = omega[a] + omega[b] + omega[c];
+            uint32_t a = m.indices[3 * t + 0];
+            uint32_t b = m.indices[3 * t + 1];
+            uint32_t c = m.indices[3 * t + 2];
 
-        Kokkos::atomic_add(&T[a], sum * (psi[b] - psi[c]));
-        Kokkos::atomic_add(&T[b], sum * (psi[c] - psi[a]));
-        Kokkos::atomic_add(&T[c], sum * (psi[a] - psi[b]));
-    });
+            double sum = omega[a] + omega[b] + omega[c];
 
-    Kokkos::parallel_for("normalize", N,
-        KOKKOS_LAMBDA(const size_t i)
-    {
-        T[i] *= 1.0 / 6.0;
-    });
+            T_access(a) += sum * (psi[b] - psi[c]);
+            T_access(b) += sum * (psi[c] - psi[a]);
+            T_access(c) += sum * (psi[a] - psi[b]);
+        });
 
     Kokkos::fence();
-
+    Kokkos::Experimental::contribute(T_view, T_scatter);
+    Kokkos::parallel_for("normalize", N, KOKKOS_LAMBDA(const size_t i) { T[i] *= 1.0 / 6.0; });
+    Kokkos::fence();
 
 	#elif defined(USE_OPENMP)
 		#pragma omp parallel for
