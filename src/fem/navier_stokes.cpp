@@ -8,6 +8,14 @@
 #include "P1.h"
 #include "tiny_blas.h"
 
+#ifdef USE_KOKKOS
+    #include <Kokkos_Core.hpp>
+	#include <Kokkos_ScatterView.hpp>
+#endif
+
+#ifdef USE_OPENMP
+    #include <omp.h>
+#endif
 
 /******************************************************************************
  *
@@ -128,7 +136,7 @@ void NavierStokesSolver::set_zero_mean(double *V) {
 	 *
 	 *     s = 1^T * M * V
 	 */
-	double s = blas_sum_in_place(Ap.data, N);
+	double s = blas_sum(Ap.data, N);
 
 	/*
 	 * Remove the mean value from every degree of freedom:
@@ -158,9 +166,8 @@ void NavierStokesSolver::set_zero_mean(double *V) {
  *
  * where:
  *
- *     J(psi, omega)
- *         = d(psi)/dx * d(omega)/dy
- *           - d(psi)/dy * d(omega)/dx
+ *     J(psi, omega) = grad(psi) x grad(omega)
+ *         			= d(psi)/dx * d(omega)/dy - d(psi)/dy * d(omega)/dx
  *
  * This function assembles a discrete finite element approximation of this
  * nonlinear transport term.
@@ -169,13 +176,70 @@ void NavierStokesSolver::set_zero_mean(double *V) {
  *
  *     T
  *
- * Each triangle contributes to the three vertices defining the element.
+ * Each triangle contributes independently to the transport accumulated on its
+ * three vertices.
+ * 
+ * Backend selection:
+ *     USE_KOKKOS   : parallel_for + ScatterView
+ *     USE_OPENMP   : thread-local accumulation
+ *     USE_OPENBLAS : sequential (no BLAS equivalent)
+ *     default      : sequential
  *
  *****************************************************************************/
 void NavierStokesSolver::compute_transport(double *T) {
 	/* Initialize the transport vector to zero. */
 	memset(T, 0, N * sizeof(double));
+	
+	#if defined(USE_KOKKOS)
 
+    Kokkos::View<double*> T_view(T, N);
+    Kokkos::Experimental::ScatterView<double*> T_scatter(T_view);
+
+    Kokkos::parallel_for("transport", m.triangle_count(), KOKKOS_LAMBDA(const size_t t) {
+            auto T_access = T_scatter.access();
+
+            uint32_t a = m.indices[3 * t + 0];
+            uint32_t b = m.indices[3 * t + 1];
+            uint32_t c = m.indices[3 * t + 2];
+
+            double sum = omega[a] + omega[b] + omega[c];
+
+            T_access(a) += sum * (psi[b] - psi[c]);
+            T_access(b) += sum * (psi[c] - psi[a]);
+            T_access(c) += sum * (psi[a] - psi[b]);
+        });
+
+    Kokkos::fence();
+    Kokkos::Experimental::contribute(T_view, T_scatter);
+    Kokkos::parallel_for("normalize", N, KOKKOS_LAMBDA(const size_t i) { T[i] *= 1.0 / 6.0; });
+    Kokkos::fence();
+
+	#elif defined(USE_OPENMP)
+		#pragma omp parallel for
+		for (size_t t = 0; t < m.triangle_count(); ++t) {
+        	
+			uint32_t a = m.indices[3*t+0];
+        	uint32_t b = m.indices[3*t+1];
+        	uint32_t c = m.indices[3*t+2];
+
+        	double sum = omega[a] + omega[b] + omega[c];
+
+        	#pragma omp atomic
+        	T[a] += sum * (psi[b] - psi[c]);
+
+        	#pragma omp atomic
+        	T[b] += sum * (psi[c] - psi[a]);
+
+        	#pragma omp atomic
+        	T[c] += sum * (psi[a] - psi[b]);
+    	}
+
+    #pragma omp parallel for
+    for (size_t i = 0; i < N; ++i)
+        T[i] *= 1.0 / 6.0;
+
+	#else // Default : sequential
+	
 	/*
 	 * Assemble the transport contribution triangle by triangle.
 	 */
@@ -219,6 +283,8 @@ void NavierStokesSolver::compute_transport(double *T) {
 	for (size_t v = 0; v < N; ++v) {
 		T[v] *= 1.0 / 6;
 	}
+	
+	#endif
 }
 
 

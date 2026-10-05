@@ -9,9 +9,21 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(PLNS-SOLVER LANGUAGES CXX C)
 
-set(USE_OPENMP FALSE)
-if (USE_OPENMP)
-	find_package(OpenMP)
+
+###############################################################################
+# Optional HPC backends
+###############################################################################
+
+option(USE_OPENMP   "Enable OpenMP backend" OFF)
+option(USE_OPENBLAS "Enable OpenBLAS backend" OFF)
+option(USE_KOKKOS   "Enable Kokkos backend"  OFF)
+
+if(USE_OPENMP)
+    find_package(OpenMP REQUIRED)
+endif()
+
+if(USE_OPENBLAS)
+    find_package(BLAS REQUIRED)
 endif()
 
 ###############################################################################
@@ -52,33 +64,31 @@ target_include_directories(tiny_expr PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/extern)
 
 
 ###############################################################################
-# Kokkos
+# Kokkos (optional)
 ###############################################################################
 
-find_package(Kokkos QUIET)
+if (USE_KOKKOS)
 
-if (Kokkos_FOUND)
-    message(STATUS "Kokkos found locally: ${Kokkos_DIR}")
-else()
-    message(STATUS "Kokkos not found locally, fetching from GitHub...")
+    find_package(Kokkos QUIET)
 
-    include(FetchContent)
+    if (NOT Kokkos_FOUND)
+        message(STATUS "Kokkos not found locally, fetching from GitHub...")
 
-    FetchContent_Declare(
-      kokkos
-      GIT_REPOSITORY https://github.com/kokkos/kokkos.git
-      GIT_TAG        4.3.01
-    )
+        include(FetchContent)
 
-    set(Kokkos_ENABLE_SERIAL ON  CACHE BOOL "" FORCE)
-    set(BUILD_SHARED_LIBS    OFF CACHE BOOL "" FORCE)
+        FetchContent_Declare(
+            kokkos
+            GIT_REPOSITORY https://github.com/kokkos/kokkos.git
+            GIT_TAG 4.3.01
+        )
 
-    FetchContent_MakeAvailable(kokkos)
+        set(Kokkos_ENABLE_SERIAL ON CACHE BOOL "" FORCE)
+        set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
+        FetchContent_MakeAvailable(kokkos)
+    endif()
+
 endif()
-
-# Kokkos::kokkos exists in BOTH cases (find_package or FetchContent),
-# so this flag is independent of Kokkos_FOUND.
-set(KOKKOS_AVAILABLE TRUE)
 
 ###############################################################################
 # Library
@@ -126,120 +136,112 @@ target_link_libraries(PLNS-solver PUBLIC
 	OpenGL::GL
 )
 
-if (USE_OPENMP AND OpenMP_CXX_FOUND)
-	target_compile_options(PLNS-solver PRIVATE -DUSE_OPENMP)
-	target_link_libraries(PLNS-solver PUBLIC OpenMP::OpenMP_CXX)
+###############################################################################
+# Backend selection
+###############################################################################
+
+if(USE_OPENMP)
+    target_link_libraries(PLNS-solver PUBLIC OpenMP::OpenMP_CXX)
+    target_compile_definitions(PLNS-solver PUBLIC USE_OPENMP)
 endif()
 
-if (KOKKOS_AVAILABLE)
+if(USE_OPENBLAS)
+    target_link_libraries(PLNS-solver PUBLIC BLAS::BLAS)
+    target_compile_definitions(PLNS-solver PUBLIC USE_OPENBLAS)
+endif()
+
+if(USE_KOKKOS)
     target_link_libraries(PLNS-solver PUBLIC Kokkos::kokkos)
+    target_compile_definitions(PLNS-solver PUBLIC USE_KOKKOS)
 endif()
-
-set(TEST_TARGETS
-    test_cg
-    test_fem_matrix
-    test_sparse_matrix
-    test_mesh
-    test_mesh_bounds
-    test_mesh_io
-    test_mesh_gpu
-    test_vec4
-    test_mat4
-    test_quat
-    test_geometry
-    test_rigid_transform
-    test_kokkos_intro
-)
-
-foreach(test_name ${TEST_TARGETS})
-    add_executable(${test_name} src/tests/${test_name}.cpp)
-    target_link_libraries(${test_name} PRIVATE PLNS-solver)
-endforeach()
-
-target_compile_definitions(test_mesh_io PRIVATE
-    TEST_DATA_DIR="${CMAKE_SOURCE_DIR}/data"
-)
-
-###############################################################################
-# test_poisson depends on USE_FEM_MATRIX -> build it twice, once per variant
-###############################################################################
-
-foreach(variant IN ITEMS fem csr)
-
-    if (variant STREQUAL "fem")
-        set(matrix_flag 1)
-    else()
-        set(matrix_flag 0)
-    endif()
-
-    set(exe_name test_poisson_${variant})
-
-    add_executable(${exe_name}
-        src/fem/poisson.cpp
-        src/tests/test_poisson.cpp
-    )
-
-    target_link_libraries(${exe_name} PRIVATE PLNS-solver)
-    target_compile_definitions(${exe_name} PRIVATE USE_FEM_MATRIX=${matrix_flag})
-
-    add_test(NAME ${exe_name} COMMAND ${exe_name})
-
-endforeach()
-
-###############################################################################
-# test_navier_stokes depends on USE_FEM_MATRIX -> build it twice too
-###############################################################################
-
-foreach(variant IN ITEMS fem csr)
-
-    if (variant STREQUAL "fem")
-        set(matrix_flag 1)
-    else()
-        set(matrix_flag 0)
-    endif()
-
-    set(exe_name test_navier_stokes_${variant})
-
-    add_executable(${exe_name}
-        src/fem/navier_stokes.cpp
-        src/tests/test_navier_stokes.cpp
-    )
-
-    target_link_libraries(${exe_name} PRIVATE PLNS-solver)
-    target_compile_definitions(${exe_name} PRIVATE USE_FEM_MATRIX=${matrix_flag})
-
-    add_test(NAME ${exe_name} COMMAND ${exe_name})
-
-endforeach()
-
 ###############################################################################
 # Tests
 ###############################################################################
 
 enable_testing()
 
-add_test(NAME test_cg            COMMAND test_cg)
-add_test(NAME test_fem_matrix    COMMAND test_fem_matrix)
-add_test(NAME test_sparse_matrix COMMAND test_sparse_matrix)
-add_test(NAME test_mesh          COMMAND test_mesh)
-add_test(NAME test_mesh_bounds   COMMAND test_mesh_bounds)
-add_test(NAME test_mesh_io       COMMAND test_mesh_io)
-add_test(NAME test_mesh_gpu      COMMAND test_mesh_gpu)
-add_test(NAME test_vec4            COMMAND test_vec4)
-add_test(NAME test_mat4            COMMAND test_mat4)
-add_test(NAME test_quat            COMMAND test_quat)
-add_test(NAME test_geometry        COMMAND test_geometry)
-add_test(NAME test_rigid_transform COMMAND test_rigid_transform)
-add_test(NAME test_kokkos_intro COMMAND test_kokkos_intro)
+function(plns_test target source)
+    add_executable(${target} ${source})
+    target_link_libraries(${target} PRIVATE PLNS-solver)
+    add_test(NAME ${target} COMMAND $<TARGET_FILE:${target}>)
+endfunction()
+
+plns_test(test_cg               src/tests/test_cg.cpp)
+plns_test(test_fem_matrix       src/tests/test_fem_matrix.cpp)
+plns_test(test_sparse_matrix    src/tests/test_sparse_matrix.cpp)
+plns_test(test_mesh             src/tests/test_mesh.cpp)
+plns_test(test_mesh_bounds      src/tests/test_mesh_bounds.cpp)
+plns_test(test_mesh_io          src/tests/test_mesh_io.cpp)
+plns_test(test_mesh_gpu         src/tests/test_mesh_gpu.cpp)
+plns_test(test_vec4             src/tests/test_vec4.cpp)
+plns_test(test_mat4             src/tests/test_mat4.cpp)
+plns_test(test_quat             src/tests/test_quat.cpp)
+plns_test(test_geometry         src/tests/test_geometry.cpp)
+plns_test(test_rigid_transform  src/tests/test_rigid_transform.cpp)
+
+if(USE_KOKKOS)
+    plns_test(test_kokkos_intro src/tests/test_kokkos_intro.cpp)
+endif()
+
+target_compile_definitions(test_mesh_io PRIVATE
+    TEST_DATA_DIR="${CMAKE_SOURCE_DIR}/data")
+
+###############################################################################
+# Poisson variants
+###############################################################################
+
+foreach(variant IN ITEMS fem csr)
+
+    if(variant STREQUAL "fem")
+        set(USE_FEM 1)
+    else()
+        set(USE_FEM 0)
+    endif()
+
+    add_executable(test_poisson_${variant}
+        src/fem/poisson.cpp
+        src/tests/test_poisson.cpp)
+
+    target_link_libraries(test_poisson_${variant} PRIVATE PLNS-solver)
+    target_compile_definitions(test_poisson_${variant}
+        PRIVATE USE_FEM_MATRIX=${USE_FEM})
+
+    add_test(NAME test_poisson_${variant}
+         COMMAND test_poisson_${variant})
+
+endforeach()
+
+###############################################################################
+# Navier-Stokes variants
+###############################################################################
+
+foreach(variant IN ITEMS fem csr)
+
+    if(variant STREQUAL "fem")
+        set(USE_FEM 1)
+    else()
+        set(USE_FEM 0)
+    endif()
+
+    add_executable(test_navier_stokes_${variant}
+        src/fem/navier_stokes.cpp
+        src/tests/test_navier_stokes.cpp)
+
+    target_link_libraries(test_navier_stokes_${variant} PRIVATE PLNS-solver)
+    target_compile_definitions(test_navier_stokes_${variant}
+        PRIVATE USE_FEM_MATRIX=${USE_FEM})
+
+    add_test(NAME test_navier_stokes_${variant}
+         COMMAND test_navier_stokes_${variant})
+
+endforeach()
 
 ###############################################################################
 # Run all tests
 ###############################################################################
 
 add_custom_target(check
-
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-
     DEPENDS
         test_cg
         test_fem_matrix
@@ -257,10 +259,11 @@ add_custom_target(check
         test_poisson_csr
         test_navier_stokes_fem
         test_navier_stokes_csr
-        test_kokkos_intro
-
 )
 
+if(USE_KOKKOS)
+    add_dependencies(check test_kokkos_intro)
+endif()
 
 ###############################################################################
 # Demo

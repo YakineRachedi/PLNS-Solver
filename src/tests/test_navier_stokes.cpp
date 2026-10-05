@@ -1,4 +1,5 @@
 #include "test_utils.h"
+#include "kokkos_utils.h"
 #include "test_meshes.h"
 #include "navier_stokes.h"
 
@@ -281,7 +282,8 @@ static void test_diffusion(const Mesh & mesh) {
 }
 
 
-int main() {
+int main(int argc, char** argv) {
+    KokkosScope kokkos(argc, argv); 
     Mesh mesh;
     setup_unit_square_mesh(mesh);
 
