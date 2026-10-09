@@ -15,16 +15,14 @@ project(PLNS-SOLVER LANGUAGES CXX C)
 ###############################################################################
 
 option(USE_OPENMP   "Enable OpenMP backend" OFF)
-option(USE_OPENBLAS "Enable OpenBLAS backend" OFF)
+option(USE_OPENBLAS_TINY_BLAS "Use OpenBLAS for supported tiny_blas operations" OFF)
 option(USE_KOKKOS   "Enable Kokkos backend"  OFF)
 
-if(USE_OPENMP)
-    find_package(OpenMP REQUIRED)
+if(USE_OPENMP AND USE_KOKKOS)
+    message(FATAL_ERROR
+        "Select either OpenMP or Kokkos as the main backend.")
 endif()
 
-if(USE_OPENBLAS)
-    find_package(BLAS REQUIRED)
-endif()
 
 ###############################################################################
 # OpenGL / GLFW / ImGui (needed by GPUMesh and the graphical demo)
@@ -141,19 +139,29 @@ target_link_libraries(PLNS-solver PUBLIC
 ###############################################################################
 
 if(USE_OPENMP)
+    find_package(OpenMP REQUIRED)
     target_link_libraries(PLNS-solver PUBLIC OpenMP::OpenMP_CXX)
     target_compile_definitions(PLNS-solver PUBLIC USE_OPENMP)
-endif()
-
-if(USE_OPENBLAS)
-    target_link_libraries(PLNS-solver PUBLIC BLAS::BLAS)
-    target_compile_definitions(PLNS-solver PUBLIC USE_OPENBLAS)
 endif()
 
 if(USE_KOKKOS)
     target_link_libraries(PLNS-solver PUBLIC Kokkos::kokkos)
     target_compile_definitions(PLNS-solver PUBLIC USE_KOKKOS)
 endif()
+
+if(USE_OPENBLAS_TINY_BLAS)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(OPENBLAS REQUIRED IMPORTED_TARGET openblas)
+
+    target_link_libraries(PLNS-solver
+        PUBLIC PkgConfig::OPENBLAS
+    )
+
+    target_compile_definitions(PLNS-solver
+        PUBLIC USE_OPENBLAS_TINY_BLAS
+    )
+endif()
+
 ###############################################################################
 # Tests
 ###############################################################################

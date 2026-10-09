@@ -9,7 +9,7 @@
     #include <Kokkos_Core.hpp>
 #endif
 
-#ifdef USE_OPENBLAS
+#ifdef USE_OPENBLAS_TINY_BLAS
     #include <cblas.h>
 #endif
 
@@ -50,12 +50,13 @@
  *
  *****************************************************************************/
 void inline blas_copy(const double *__restrict src, double *__restrict dest, size_t N) {
+    
+    #if defined(USE_OPENBLAS_TINY_BLAS)
+        cblas_dcopy((int)N, src, 1, dest, 1);
 
-    #if defined(USE_KOKKOS)
+    #elif defined(USE_KOKKOS)
         Kokkos::parallel_for("blas_copy", N, KOKKOS_LAMBDA(size_t i) { dest[i] = src[i] ;});
         Kokkos::fence();
-    #elif defined(USE_OPENBLAS)
-        cblas_dcopy((int)N, src, 1, dest, 1);
     #elif defined(USE_OPENMP)
         #pragma omp parallel for
             for (size_t i = 0; i < N; ++i) dest[i] = src[i];
@@ -82,11 +83,11 @@ void inline blas_copy(const double *__restrict src, double *__restrict dest, siz
  *****************************************************************************/
 void inline blas_axpy(double a, const double *__restrict x, double *__restrict y, size_t N) {
 
-    #if defined(USE_KOKKOS)
+    #if defined(USE_OPENBLAS_TINY_BLAS)
+        cblas_daxpy(static_cast<int>(N), a, x, 1, y, 1);
+    #elif defined(USE_KOKKOS)
         Kokkos::parallel_for("blas_axpy", N, KOKKOS_LAMBDA(const size_t i) {y[i] += a * x[i];});
         Kokkos::fence();
-    #elif defined(USE_OPENBLAS)
-        cblas_daxpy((int)N, a, x, 1, y, 1);
     #elif defined(USE_OPENMP)
         #pragma omp parallel for
             for (size_t i = 0; i < N; ++i) y[i] += a * x[i];
@@ -118,11 +119,12 @@ void inline blas_axpy(double a, const double *__restrict x, double *__restrict y
 
 void inline blas_axpby(double a, const double *__restrict x, double b, double *__restrict y, size_t N) {
     
-    #if defined(USE_KOKKOS)
+    #if defined(USE_OPENBLAS_TINY_BLAS)
+        cblas_daxpby((int)N, a, x, 1, b, y, 1);
+
+    #elif defined(USE_KOKKOS)
         Kokkos::parallel_for("blas_axpby", N, KOKKOS_LAMBDA(const size_t i) { y[i] = a * x[i] + b * y[i] ;});
         Kokkos::fence();
-    #elif defined(USE_OPENBLAS)
-        cblas_daxpby((int)N, a, x, 1, b, y, 1);
 
     #elif defined(USE_OPENMP)
         #pragma omp parallel for
@@ -145,13 +147,13 @@ void inline blas_axpby(double a, const double *__restrict x, double b, double *_
  *
  *****************************************************************************/
 double inline blas_dot(const double *x, const double *y, size_t N) {
-    #if defined(USE_KOKKOS)
+    #if defined(USE_OPENBLAS_TINY_BLAS)
+        return cblas_ddot((int)N, x, 1, y, 1);
+
+    #elif defined(USE_KOKKOS)
         double res = 0.0;
         Kokkos::parallel_reduce("blas_dot", N, KOKKOS_LAMBDA(const size_t i, double &lsum) {lsum += x[i] * y[i] ;}, res);
     return res;
-
-    #elif defined(USE_OPENBLAS)
-    return cblas_ddot((int)N, x, 1, y, 1);
 
     #elif defined(USE_OPENMP)
         double res = 0.0;
